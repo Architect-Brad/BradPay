@@ -12,7 +12,7 @@ def get_firestore():
     if _db is None:
         import firebase_admin
         from firebase_admin import credentials
-        import google.cloud.firestore as fs
+        from firebase_admin import firestore as fs
 
         _firestore_module = fs
 
@@ -29,16 +29,22 @@ def get_firestore():
             except ValueError:
                 pass
 
-        _db = fs.Client()
+        _db = fs.client()
     return _db
 
 
 def _inc(amount):
-    return _firestore_module.Increment(amount)
+    if _firestore_module:
+        return _firestore_module.Increment(amount)
+    from google.cloud.firestore_v1 import Increment
+    return Increment(amount)
 
 
 def _desc():
-    return _firestore_module.Query.DESCENDING
+    if _firestore_module:
+        return _firestore_module.Query.DESCENDING
+    from google.cloud.firestore_v1 import Query
+    return Query.DESCENDING
 
 
 def init_db():
