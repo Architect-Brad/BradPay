@@ -59,21 +59,32 @@
       <div class="balance-card">
         <div class="balance-label">Available Balance</div>
         <div class="balance-amount" id="balance-amount">0.00</div>
-        <div class="balance-currency">BradCoins (BC)</div>
+        <div class="balance-currency">KES</div>
+        <div class="balance-kes" id="kes-balance-display" style="font-size:14px;opacity:0.8;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.15);">
+          M-PESA Balance: <strong id="kes-balance-amount">KES 0.00</strong>
+        </div>
       </div>
 
-      <div class="quick-actions" id="quick-actions">
+      <div class="quick-actions" id="quick-actions" style="grid-template-columns:1fr 1fr 1fr;">
+        <div class="quick-action" id="action-deposit">
+          <div class="icon">💰</div>
+          <div class="label">Deposit</div>
+        </div>
         <div class="quick-action" id="action-send">
           <div class="icon">↑</div>
           <div class="label">Send</div>
         </div>
-        <div class="quick-action" id="action-receive">
-          <div class="icon">↓</div>
-          <div class="label">Receive</div>
-        </div>
         <div class="quick-action" id="action-trade">
           <div class="icon">📊</div>
           <div class="label">Trade</div>
+        </div>
+        <div class="quick-action" id="action-withdraw">
+          <div class="icon">🏧</div>
+          <div class="label">Withdraw</div>
+        </div>
+        <div class="quick-action" id="action-receive">
+          <div class="icon">↓</div>
+          <div class="label">Receive</div>
         </div>
         <div class="quick-action" id="action-ledger">
           <div class="icon">🔗</div>
@@ -94,7 +105,7 @@
       <label>Recipient</label>
       <input type="text" id="send-recipient" placeholder="Email, phone, or UID" autocomplete="off" />
       <div id="send-recipient-info" class="recipient-info" style="display:none;"></div>
-      <label>Amount (BC)</label>
+      <label>Amount (KES)</label>
       <input type="number" id="send-amount" placeholder="0.00" min="0.01" step="0.01" inputmode="decimal" />
       <label>Note (optional)</label>
       <input type="text" id="send-note" placeholder="What's this for?" maxlength="100" />
@@ -114,6 +125,36 @@
         <div class="receive-hint">Share this ID or your email with the sender</div>
         <button class="btn btn-secondary btn-full" id="receive-copy">Copy UID</button>
       </div>
+    </div>
+
+    <!-- Deposit Screen -->
+    <div id="deposit-screen" class="screen form-screen">
+      <button class="back" id="deposit-back">← Back</button>
+      <h2>Deposit from M-PESA</h2>
+      <p style="font-size:14px;color:var(--text2);margin-bottom:8px;">Enter amount and we'll send an STK Push to your phone.</p>
+      <label>Amount (KES)</label>
+      <input type="number" id="deposit-amount" placeholder="e.g. 500" min="10" step="1" inputmode="numeric" />
+      <label>M-PESA Phone Number</label>
+      <input type="tel" id="deposit-phone" placeholder="0712345678" inputmode="numeric" />
+      <button class="btn btn-primary btn-full" id="deposit-submit">Deposit via M-PESA</button>
+      <div id="deposit-status" style="display:none;margin-top:12px;"></div>
+    </div>
+
+    <!-- Withdraw Screen -->
+    <div id="withdraw-screen" class="screen form-screen">
+      <button class="back" id="withdraw-back">← Back</button>
+      <h2>Withdraw to M-PESA</h2>
+      <p style="font-size:14px;color:var(--text2);margin-bottom:8px;">Cash out your KES balance to M-PESA.</p>
+      <div style="background:var(--bg2);padding:12px;border-radius:8px;margin-bottom:8px;">
+        <span style="color:var(--text2);">Available Balance: </span>
+        <strong id="withdraw-kes-balance">KES 0.00</strong>
+      </div>
+      <label>Amount (KES)</label>
+      <input type="number" id="withdraw-amount" placeholder="e.g. 500" min="10" step="1" inputmode="numeric" />
+      <label>M-PESA Phone Number</label>
+      <input type="tel" id="withdraw-phone" placeholder="0712345678" inputmode="numeric" />
+      <button class="btn btn-danger btn-full" id="withdraw-submit">Withdraw to M-PESA</button>
+      <div id="withdraw-status" style="display:none;margin-top:12px;"></div>
     </div>
 
     <!-- Ledger / Block Explorer -->
@@ -159,8 +200,8 @@
       </div>
 
       <div class="trade-balance-bar">
-        <span>Available: <strong id="trade-available-balance">0.00</strong> BC</span>
-        <span>Locked: <strong id="trade-locked-balance">0.00</strong> BC</span>
+        <span>Available: <strong id="trade-available-balance">0.00</strong> KES</span>
+        <span>Locked: <strong id="trade-locked-balance">0.00</strong> KES</span>
       </div>
 
       <div class="trade-tabs">
@@ -172,7 +213,7 @@
 
       <!-- Order Book Tab -->
       <div class="trade-panel active" id="tab-orderbook">
-        <div class="ob-header"><span>Price (¢)</span><span>Amount (BC)</span><span>Total</span></div>
+        <div class="ob-header"><span>Price (¢)</span><span>Amount (KES)</span><span>Total</span></div>
         <div class="ob-asks" id="ob-asks"></div>
         <div class="ob-spread" id="ob-spread"></div>
         <div class="ob-bids" id="ob-bids"></div>
@@ -184,9 +225,9 @@
           <button class="btn btn-sm" id="order-type-buy" data-type="buy">Buy</button>
           <button class="btn btn-sm btn-secondary" id="order-type-sell" data-type="sell">Sell</button>
         </div>
-        <label>Price (cents per BC)</label>
+        <label>Price (cents per KES)</label>
         <input type="number" id="order-price" placeholder="e.g. 50" min="1" step="1" inputmode="numeric" />
-        <label>Amount (BC cents)</label>
+        <label>Amount (cents)</label>
         <input type="number" id="order-amount" placeholder="e.g. 1000" min="1" step="1" inputmode="numeric" />
         <button class="btn btn-primary btn-full" id="order-submit">Place Order</button>
       </div>
@@ -211,7 +252,7 @@
       <div class="dialog">
         <h3>Confirm Transfer</h3>
         <p>Send to: <span id="confirm-recipient"></span></p>
-        <div class="amount-large" id="confirm-amount">0.00 BC</div>
+        <div class="amount-large" id="confirm-amount">KES 0.00</div>
         <p id="confirm-note"></p>
         <div class="form-group">
           <label>Enter PIN</label>

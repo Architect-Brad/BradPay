@@ -2,6 +2,7 @@ import { firebaseConfig } from "./firebase-config.js";
 import { initAuth, registerUser, getIdToken, getCurrentUser } from "./auth.js";
 import { getBalance, sendMoney, getHistory, lookupUser, formatAmount, formatDate } from "./wallet.js";
 import { initTrade, refreshTradeScreen } from "./trade.js";
+import { initDaraja, refreshDaraja } from "./daraja.js";
 
 const { initializeApp } = await import("firebase/app");
 const app = initializeApp(firebaseConfig);
@@ -43,6 +44,9 @@ function showScreen(name, push = true) {
   } else if (name === "trade") {
     refreshTradeScreen();
     stopPolling();
+  } else if (name === "deposit" || name === "withdraw") {
+    refreshDaraja();
+    stopPolling();
   } else {
     stopPolling();
   }
@@ -64,6 +68,8 @@ registerScreen("register", $("register-screen"));
 registerScreen("dashboard", $("dashboard-screen"));
 registerScreen("send", $("send-screen"));
 registerScreen("receive", $("receive-screen"));
+registerScreen("deposit", $("deposit-screen"));
+registerScreen("withdraw", $("withdraw-screen"));
 registerScreen("ledger", $("ledger-screen"));
 registerScreen("trade", $("trade-screen"));
 
@@ -102,6 +108,7 @@ async function refreshDashboard() {
     const bal = await getBalance();
     currentBalance = bal.balance || 0;
     $("balance-amount").textContent = formatAmount(currentBalance);
+    refreshDaraja();
 
     const txData = await getHistory();
     const list = $("tx-list");
@@ -159,12 +166,12 @@ async function refreshDashboard() {
             { label: "Transaction ID", value: tx.tx_ref || tx.id || "—" },
             { label: "Type", value: isSent ? "Sent" : "Received" },
             { label: isSent ? "Recipient" : "Sender", value: escapeHtml(isSent ? (tx.recipient_name || tx.recipientUid || "—") : (tx.sender_name || tx.senderUid || "—")) },
-            { label: "Amount", value: `${isSent ? "-" : "+"}${formatAmount(tx.amount)} BC` },
+            { label: "Amount", value: `${isSent ? "-" : "+"}KES ${formatAmount(tx.amount)}` },
             { label: "Date", value: formatDate(tx.created_at) },
             { label: "Note", value: tx.note || tx.noteText || "—" },
             { label: "Status", value: tx.status || "completed" },
           ];
-          if (tx.fee) rows.push({ label: "Fee", value: `${formatAmount(tx.fee)} BC` });
+          if (tx.fee) rows.push({ label: "Fee", value: `KES ${formatAmount(tx.fee)}` });
           detail.innerHTML = rows.map((r) =>
             `<div class="tx-detail-row"><span class="tx-detail-label">${r.label}</span><span class="tx-detail-value">${r.value}</span></div>`
           ).join("");
@@ -370,7 +377,7 @@ async function handleSend() {
     if (lookup.error) { showToast(lookup.error, "error"); return; }
 
     $("confirm-recipient").textContent = lookup.displayName || lookup.uid;
-    $("confirm-amount").textContent = `${amountStr} BC`;
+    $("confirm-amount").textContent = `KES ${amountStr}`;
     $("confirm-note").textContent = note ? `Note: ${note}` : "";
     $("confirm-pin").value = "";
     $("confirm-pin-error").textContent = "";
@@ -413,7 +420,7 @@ async function handleSend() {
           }
           showToast(result.error, "error");
         } else {
-          showToast(`Sent ${amountStr} BC successfully!`, "success");
+          showToast(`Sent KES ${amountStr} successfully!`, "success");
           $("send-recipient").value = "";
           $("send-amount").value = "";
           $("send-note").value = "";
@@ -490,6 +497,7 @@ async function init() {
       showScreen("dashboard", false);
       renderQR();
       initTrade();
+      initDaraja();
     } else {
       showScreen("register");
     }
@@ -548,6 +556,12 @@ document.addEventListener("DOMContentLoaded", () => {
     renderQR();
     showScreen("receive");
   };
+  $("action-deposit").onclick = () => {
+    showScreen("deposit");
+  };
+  $("action-withdraw").onclick = () => {
+    showScreen("withdraw");
+  };
   $("action-ledger").onclick = () => {
     showScreen("ledger");
   };
@@ -557,6 +571,8 @@ document.addEventListener("DOMContentLoaded", () => {
   };
   $("send-back").onclick = goBack;
   $("receive-back").onclick = goBack;
+  $("deposit-back").onclick = goBack;
+  $("withdraw-back").onclick = goBack;
   $("ledger-back").onclick = goBack;
   $("trade-back").onclick = goBack;
 

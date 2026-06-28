@@ -202,7 +202,7 @@ async function refreshMyOrders() {
             ${(o.status === "open" || o.status === "partial") ? `<button class="btn-ghost cancel-order" data-id="${o.id}" style="font-size:12px;padding:2px 8px;">✕</button>` : ""}
           </div>
           <div class="order-details">
-            <span>${o.price}¢ × ${formatAmount(o.amount)} BC</span>
+            <span>${o.price}¢ × KES ${formatAmount(o.amount)}</span>
             <span>Filled: ${formatAmount(o.filled || 0)} / ${formatAmount(o.amount)}</span>
           </div>
         </div>`;
@@ -265,7 +265,7 @@ async function refreshTradeHistory() {
             <span class="trade-record-date">${formatDate(t.created_at)}</span>
           </div>
           <div class="trade-record-details">
-            <span>${formatAmount(t.amount)} BC @ ${t.price}¢</span>
+            <span>KES ${formatAmount(t.amount)} @ ${t.price}¢</span>
             <span>Total: ${formatAmount(Math.round(t.price * t.amount / 100))}¢</span>
           </div>
         </div>`;

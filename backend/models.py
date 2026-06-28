@@ -29,6 +29,7 @@ def init_db():
             pin_hash TEXT NOT NULL,
             balance INTEGER NOT NULL DEFAULT 0,
             locked_balance INTEGER NOT NULL DEFAULT 0,
+            kes_balance INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
@@ -88,7 +89,30 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_tx_offline ON transactions(offline_id);
         CREATE INDEX IF NOT EXISTS idx_tx_status ON transactions(status);
         CREATE INDEX IF NOT EXISTS idx_users_firebase_uid ON users(firebase_uid);
+        CREATE TABLE IF NOT EXISTS mpesa_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_uid TEXT NOT NULL,
+            type TEXT NOT NULL CHECK(type IN ('deposit','withdrawal')),
+            phone TEXT NOT NULL,
+            amount INTEGER NOT NULL,
+            checkout_id TEXT,
+            conversation_id TEXT,
+            result_code INTEGER,
+            result_desc TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT,
+            FOREIGN KEY (user_uid) REFERENCES users(firebase_uid)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_mpesa_checkout ON mpesa_transactions(checkout_id);
+        CREATE INDEX IF NOT EXISTS idx_mpesa_conversation ON mpesa_transactions(conversation_id);
+        CREATE INDEX IF NOT EXISTS idx_mpesa_user ON mpesa_transactions(user_uid);
     """)
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN kes_balance INTEGER NOT NULL DEFAULT 0")
+    except Exception:
+        pass
     conn.commit()
     conn.close()
 
@@ -434,3 +458,89 @@ def get_user_with_locked(firebase_uid):
     ).fetchone()
     conn.close()
     return dict(user) if user else None
+
+
+# ── M-PESA Daraja ──
+
+def create_mpesa_transaction(user_uid, type_, phone, amount, checkout_id=None, conversation_id=None):
+    conn = get_db()
+    try:
+        conn.execute(
+            """INSERT INTO mpesa_transactions (user_uid, type, phone, amount, checkout_id, conversation_id)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (user_uid, type_, phone, amount, checkout_id, conversation_id),
+        )
+        conn.commit()
+        tx = conn.execute(
+            "SELECT * FROM mpesa_transactions WHERE id = last_insert_rowid()"
+        ).fetchone()
+        return dict(tx)
+    except Exception as e:
+        conn.rollback()
+        return {"error": str(e)}
+    finally:
+        conn.close()
+
+
+def get_mpesa_transactions(user_uid, limit=50):
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            """SELECT * FROM mpesa_transactions WHERE user_uid = ?
+               ORDER BY created_at DESC LIMIT ?""",
+            (user_uid, limit),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_mpesa_transaction_by_checkout_id(checkout_id):
+    conn = get_db()
+    tx = conn.execute(
+        "SELECT * FROM mpesa_transactions WHERE checkout_id = ?", (checkout_id,)
+    ).fetchone()
+    conn.close()
+    return dict(tx) if tx else None
+
+
+def get_mpesa_transaction_by_conversation_id(conversation_id):
+    conn = get_db()
+    tx = conn.execute(
+        "SELECT * FROM mpesa_transactions WHERE conversation_id = ?", (conversation_id,)
+    ).fetchone()
+    conn.close()
+    return dict(tx) if tx else None
+
+
+def update_mpesa_transaction_status(identifier, result_code, result_desc):
+    conn = get_db()
+    status = "completed" if result_code == 0 else "failed"
+    conn.execute(
+        """UPDATE mpesa_transactions
+           SET result_code = ?, result_desc = ?, status = ?, updated_at = datetime('now')
+           WHERE checkout_id = ? OR conversation_id = ?""",
+        (result_code, result_desc, status, identifier, identifier),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_kes_balance(user_uid, amount_delta):
+    conn = get_db()
+    conn.execute(
+        """UPDATE users SET kes_balance = MAX(COALESCE(kes_balance, 0) + ?, 0),
+            updated_at = datetime('now') WHERE firebase_uid = ?""",
+        (amount_delta, user_uid),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_kes_balance(user_uid):
+    conn = get_db()
+    user = conn.execute(
+        "SELECT kes_balance FROM users WHERE firebase_uid = ?", (user_uid,)
+    ).fetchone()
+    conn.close()
+    return user["kes_balance"] if user else None

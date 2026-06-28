@@ -18,6 +18,13 @@ if os.environ.get("FIREBASE_SERVICE_ACCOUNT"):
         execute_trade,
         get_trades,
         get_user_with_locked,
+        create_mpesa_transaction,
+        get_mpesa_transactions,
+        get_mpesa_transaction_by_checkout_id,
+        get_mpesa_transaction_by_conversation_id,
+        update_mpesa_transaction_status,
+        update_kes_balance,
+        get_kes_balance,
     )
 else:
     from models import (
@@ -37,4 +44,11 @@ else:
         execute_trade,
         get_trades,
         get_user_with_locked,
+        create_mpesa_transaction,
+        get_mpesa_transactions,
+        get_mpesa_transaction_by_checkout_id,
+        get_mpesa_transaction_by_conversation_id,
+        update_mpesa_transaction_status,
+        update_kes_balance,
+        get_kes_balance,
     )

@@ -74,6 +74,7 @@ def create_user(firebase_uid, email=None, display_name=None, phone=None, pin="12
         "pin_hash": pin_hash,
         "balance": 0,
         "locked_balance": 0,
+        "kes_balance": 0,
         "created_at": now,
         "updated_at": now,
     }
@@ -395,3 +396,121 @@ def get_trades(user_uid=None, limit=50):
 
 def get_user_with_locked(firebase_uid):
     return get_user_by_firebase_uid(firebase_uid)
+
+
+# ── M-PESA Daraja ──
+
+def _mpesa_collection():
+    return get_firestore().collection("mpesa_transactions")
+
+
+def create_mpesa_transaction(user_uid, type_, phone, amount, checkout_id=None, conversation_id=None):
+    now = datetime.now(timezone.utc).isoformat()
+    tx_data = {
+        "user_uid": user_uid,
+        "type": type_,
+        "phone": phone,
+        "amount": amount,
+        "checkout_id": checkout_id or "",
+        "conversation_id": conversation_id or "",
+        "result_code": None,
+        "result_desc": "",
+        "status": "pending",
+        "created_at": now,
+        "updated_at": now,
+    }
+    _, ref = _mpesa_collection().add(tx_data)
+    tx_data["id"] = ref.id
+    return tx_data
+
+
+def get_mpesa_transactions(user_uid, limit=50):
+    db = get_firestore()
+    docs = (
+        _mpesa_collection()
+        .where("user_uid", "==", user_uid)
+        .order_by("created_at", direction=_desc())
+        .limit(limit)
+        .stream()
+    )
+    return [{"id": d.id, **d.to_dict()} for d in docs]
+
+
+def get_mpesa_transaction_by_checkout_id(checkout_id):
+    docs = (
+        _mpesa_collection()
+        .where("checkout_id", "==", checkout_id)
+        .limit(1)
+        .stream()
+    )
+    for d in docs:
+        return {"id": d.id, **d.to_dict()}
+    return None
+
+
+def get_mpesa_transaction_by_conversation_id(conversation_id):
+    docs = (
+        _mpesa_collection()
+        .where("conversation_id", "==", conversation_id)
+        .limit(1)
+        .stream()
+    )
+    for d in docs:
+        return {"id": d.id, **d.to_dict()}
+    return None
+
+
+def update_mpesa_transaction_status(identifier, result_code, result_desc):
+    db = get_firestore()
+    status = "completed" if result_code == 0 else "failed"
+    now = datetime.now(timezone.utc).isoformat()
+    docs = (
+        _mpesa_collection()
+        .where("checkout_id", "==", identifier)
+        .limit(1)
+        .stream()
+    )
+    found = False
+    for d in docs:
+        d.reference.update({
+            "result_code": result_code,
+            "result_desc": result_desc,
+            "status": status,
+            "updated_at": now,
+        })
+        found = True
+    if not found:
+        docs2 = (
+            _mpesa_collection()
+            .where("conversation_id", "==", identifier)
+            .limit(1)
+            .stream()
+        )
+        for d in docs2:
+            d.reference.update({
+                "result_code": result_code,
+                "result_desc": result_desc,
+                "status": status,
+                "updated_at": now,
+            })
+
+
+def update_kes_balance(user_uid, amount_delta):
+    db = get_firestore()
+    user_ref = db.collection("users").document(user_uid)
+    user_doc = user_ref.get()
+    if not user_doc.exists:
+        return
+    current = user_doc.to_dict().get("kes_balance", 0)
+    new_balance = max(0, current + amount_delta)
+    user_ref.update({
+        "kes_balance": new_balance,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+
+def get_kes_balance(user_uid):
+    user = get_user_by_firebase_uid(user_uid)
+    if user:
+        return user.get("kes_balance", 0)
+    return None
