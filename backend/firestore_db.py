@@ -263,42 +263,48 @@ def get_order_book(limit=15):
     buy_agg = {}
     sell_agg = {}
 
+    buy_list = []
+    sell_list = []
+
     for status in ("open", "partial"):
         buy_docs = (
             col.where("type", "==", "buy")
             .where("status", "==", status)
-            .order_by("price", direction=_desc())
-            .order_by("created_at")
-            .limit(limit)
+            .limit(limit * 5)
             .stream()
         )
         for d in buy_docs:
-            o = d.to_dict()
-            p = o["price"]
-            remaining = o["amount"] - o.get("filled", 0)
-            if p in buy_agg:
-                buy_agg[p]["amount"] += remaining
-                buy_agg[p]["count"] += 1
-            else:
-                buy_agg[p] = {"price": p, "amount": remaining, "count": 1}
+            buy_list.append(d.to_dict())
 
         sell_docs = (
             col.where("type", "==", "sell")
             .where("status", "==", status)
-            .order_by("price")
-            .order_by("created_at")
-            .limit(limit)
+            .limit(limit * 5)
             .stream()
         )
         for d in sell_docs:
-            o = d.to_dict()
-            p = o["price"]
-            remaining = o["amount"] - o.get("filled", 0)
-            if p in sell_agg:
-                sell_agg[p]["amount"] += remaining
-                sell_agg[p]["count"] += 1
-            else:
-                sell_agg[p] = {"price": p, "amount": remaining, "count": 1}
+            sell_list.append(d.to_dict())
+
+    buy_list.sort(key=lambda x: (-x["price"], x.get("created_at", "")))
+    sell_list.sort(key=lambda x: (x["price"], x.get("created_at", "")))
+
+    for o in buy_list[:limit]:
+        p = o["price"]
+        remaining = o["amount"] - o.get("filled", 0)
+        if p in buy_agg:
+            buy_agg[p]["amount"] += remaining
+            buy_agg[p]["count"] += 1
+        else:
+            buy_agg[p] = {"price": p, "amount": remaining, "count": 1}
+
+    for o in sell_list[:limit]:
+        p = o["price"]
+        remaining = o["amount"] - o.get("filled", 0)
+        if p in sell_agg:
+            sell_agg[p]["amount"] += remaining
+            sell_agg[p]["count"] += 1
+        else:
+            sell_agg[p] = {"price": p, "amount": remaining, "count": 1}
 
     return {
         "bids": sorted(buy_agg.values(), key=lambda x: -x["price"]),
