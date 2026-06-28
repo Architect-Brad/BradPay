@@ -5,15 +5,19 @@ def get_orders_at_price(order_type, price):
     if os.environ.get("FIREBASE_SERVICE_ACCOUNT"):
         from firestore_db import _orders_collection
         db = _orders_collection().parent
-        docs = (
-            db.collection("orders")
-            .where("type", "==", order_type)
-            .where("price", "==", price)
-            .where("status", "in", ["open", "partial"])
-            .order_by("created_at")
-            .stream()
-        )
-        return [{"id": d.id, **d.to_dict()} for d in docs]
+        results = []
+        for status in ("open", "partial"):
+            docs = (
+                db.collection("orders")
+                .where("type", "==", order_type)
+                .where("price", "==", price)
+                .where("status", "==", status)
+                .order_by("created_at")
+                .stream()
+            )
+            for d in docs:
+                results.append({"id": d.id, **d.to_dict()})
+        return results
     else:
         from models import get_db
         conn = get_db()
