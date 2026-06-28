@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="manifest" href="/manifest.json" />
+  <title>BradPay</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- Auth Screen -->
+    <div id="auth-screen" class="screen active">
+      <div class="auth-logo">Brad<span>Pay</span></div>
+      <div class="auth-tagline">The Financial Engine of the Bradverse</div>
+      <div class="auth-form" id="auth-form">
+        <div class="auth-error" id="auth-error"></div>
+        <input type="email" id="auth-email" placeholder="Email" autocomplete="email" />
+        <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password" />
+        <button class="btn btn-primary btn-full" id="auth-submit">Sign In</button>
+      </div>
+      <div class="auth-switch">
+        Don't have an account? <a id="auth-toggle">Create one</a>
+      </div>
+    </div>
+
+    <!-- Register Screen -->
+    <div id="register-screen" class="screen">
+      <div class="auth-logo">Brad<span>Pay</span></div>
+      <div class="auth-tagline">Set up your wallet</div>
+      <div class="auth-form" id="register-form">
+        <div class="auth-error" id="register-error"></div>
+        <input type="text" id="reg-name" placeholder="Full Name" />
+        <input type="tel" id="reg-phone" placeholder="Phone Number (optional)" />
+        <input type="password" id="reg-pin" placeholder="4-6 digit PIN" maxlength="6" inputmode="numeric" pattern="[0-9]*" />
+        <input type="password" id="reg-pin-confirm" placeholder="Confirm PIN" maxlength="6" inputmode="numeric" pattern="[0-9]*" />
+        <button class="btn btn-primary btn-full" id="register-submit">Create Wallet</button>
+      </div>
+      <div class="auth-switch">
+        Already have an account? <a id="register-toggle">Sign in</a>
+      </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard-screen" class="screen">
+      <div class="top-bar">
+        <div>
+          <div class="user-name" id="dashboard-user-name">Welcome</div>
+          <h1>BradPay</h1>
+        </div>
+        <button class="btn-logout" id="logout-btn">Sign Out</button>
+      </div>
+
+      <div class="balance-card">
+        <div class="balance-label">Available Balance</div>
+        <div class="balance-amount" id="balance-amount">0.00</div>
+        <div class="balance-currency">BradCoins (BC)</div>
+      </div>
+
+      <div class="quick-actions">
+        <div class="quick-action" id="action-send">
+          <div class="icon">↑</div>
+          <div class="label">Send</div>
+        </div>
+        <div class="quick-action" id="action-receive">
+          <div class="icon">↓</div>
+          <div class="label">Receive</div>
+        </div>
+      </div>
+
+      <div class="section-title">Recent Transactions</div>
+      <div class="tx-list" id="tx-list">
+        <div class="tx-empty">No transactions yet</div>
+      </div>
+    </div>
+
+    <!-- Send Screen -->
+    <div id="send-screen" class="screen form-screen">
+      <button class="back" id="send-back">← Back</button>
+      <h2>Send Money</h2>
+      <label>Recipient</label>
+      <input type="text" id="send-recipient" placeholder="Email, phone, or UID" />
+      <label>Amount (BC)</label>
+      <input type="number" id="send-amount" placeholder="0.00" min="0.01" step="0.01" inputmode="decimal" />
+      <label>Note (optional)</label>
+      <input type="text" id="send-note" placeholder="What's this for?" maxlength="100" />
+      <button class="btn btn-primary btn-full" id="send-submit">Continue</button>
+    </div>
+
+    <!-- Receive Screen -->
+    <div id="receive-screen" class="screen form-screen">
+      <button class="back" id="receive-back">← Back</button>
+      <h2>Receive Money</h2>
+      <div style="background:var(--bg2);border-radius:var(--radius);padding:24px;text-align:center;margin-top:8px;">
+        <div style="font-size:13px;color:var(--text3);margin-bottom:8px;">Your BradPay ID</div>
+        <div style="font-size:14px;font-weight:600;word-break:break-all;background:var(--bg);padding:12px;border-radius:var(--radius-sm);" id="receive-uid">---</div>
+        <div style="font-size:13px;color:var(--text2);margin-top:12px;">
+          Share this ID or your email with the sender
+        </div>
+        <button class="btn btn-secondary btn-full" id="receive-copy" style="margin-top:16px;">Copy UID</button>
+      </div>
+    </div>
+
+    <!-- Confirm Dialog -->
+    <div class="dialog-overlay" id="confirm-dialog">
+      <div class="dialog">
+        <h3>Confirm Transfer</h3>
+        <p>Send to: <span id="confirm-recipient"></span></p>
+        <div class="amount-large" id="confirm-amount">0.00 BC</div>
+        <p id="confirm-note"></p>
+        <div class="actions">
+          <button class="btn btn-secondary" id="confirm-cancel">Cancel</button>
+          <button class="btn btn-primary" id="confirm-submit">Send</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "firebase/app": "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js",
+      "firebase/auth": "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js"
+    }
+  }
+  </script>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
