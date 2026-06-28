@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>API Docs — BradPay Developers</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    .api-page { max-width: 860px; margin: 0 auto; padding: 40px 20px; }
+    .api-page h1 { font-size: 28px; margin-bottom: 4px; }
+    .api-page .subtitle { color: var(--text3); font-size: 14px; margin-bottom: 32px; }
+    .api-page h2 { font-size: 22px; margin: 32px 0 12px; color: var(--primary-light); border-bottom: 1px solid var(--bg3); padding-bottom: 8px; }
+    .api-page h3 { font-size: 18px; margin: 20px 0 8px; }
+    .api-page p, .api-page li { color: var(--text2); line-height: 1.7; }
+    .api-page ul { padding-left: 20px; }
+    .api-page .back-link { display: inline-block; margin-bottom: 24px; color: var(--primary); text-decoration: none; font-size: 14px; }
+    .api-page .back-link:hover { text-decoration: underline; }
+    .endpoint { background: var(--bg2); border-radius: var(--radius-sm); margin: 16px 0; overflow: hidden; border: 1px solid var(--bg3); }
+    .endpoint-head { display: flex; align-items: stretch; }
+    .endpoint-method { padding: 12px 16px; font-weight: 700; font-size: 13px; display: flex; align-items: center; min-width: 72px; justify-content: center; }
+    .method-get { background: #059669; color: #fff; }
+    .method-post { background: #2563eb; color: #fff; }
+    .method-put { background: #d97706; color: #fff; }
+    .method-delete { background: #dc2626; color: #fff; }
+    .endpoint-path { padding: 12px 16px; font-family: 'SF Mono','Fira Code',monospace; font-size: 14px; flex: 1; display: flex; align-items: center; color: var(--text); }
+    .endpoint-auth { padding: 12px 16px; font-size: 12px; display: flex; align-items: center; color: var(--text3); white-space: nowrap; }
+    .endpoint-body { padding: 16px; border-top: 1px solid var(--bg3); display: none; }
+    .endpoint-body.open { display: block; }
+    .endpoint-toggle { cursor: pointer; }
+    .endpoint-body h4 { color: var(--text2); font-size: 13px; margin: 12px 0 6px; }
+    .endpoint-body pre { background: #0a0f1e; padding: 12px; border-radius: 6px; font-size: 13px; overflow-x: auto; color: #e2e8f0; font-family: 'SF Mono','Fira Code',monospace; line-height: 1.6; }
+    .endpoint-body .param-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .endpoint-body .param-table th { text-align: left; color: var(--text3); padding: 6px 8px; border-bottom: 1px solid var(--bg3); font-weight: 600; }
+    .endpoint-body .param-table td { padding: 6px 8px; border-bottom: 1px solid var(--bg3); color: var(--text2); }
+    .endpoint-body .param-table .required { color: var(--danger); }
+    .endpoint-body .param-table .type { color: var(--primary-light); }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-left: 6px; }
+    .badge-auth { background: rgba(59,130,246,0.2); color: var(--primary-light); }
+    .badge-noauth { background: rgba(34,197,94,0.2); color: var(--success); }
+    .base-url { background: var(--bg2); padding: 8px 12px; border-radius: var(--radius-sm); font-family: monospace; font-size: 14px; display: inline-block; margin-bottom: 16px; border: 1px solid var(--bg3); }
+  </style>
+</head>
+<body>
+  <div class="api-page">
+    <a href="/" class="back-link">← Back to BradPay</a>
+    <h1>BradPay API</h1>
+    <p class="subtitle">Official REST API documentation for developers. Integrate BradPay into your app.</p>
+
+    <div class="base-url"><strong>Base URL:</strong> https://bradpay.vercel.app</div>
+
+    <h2>Authentication</h2>
+    <p>Most endpoints require a Firebase Auth token. Include it in the <code>Authorization</code> header:</p>
+    <pre>Authorization: Bearer &lt;firebase-id-token&gt;</pre>
+    <p>Get a token by signing in via Firebase Authentication on the client side, or use a custom authentication flow.</p>
+
+    <h2>Endpoints</h2>
+
+    <!-- Auth -->
+    <h3>Auth</h3>
+
+    <div class="endpoint">
+      <div class="endpoint-head endpoint-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+        <div class="endpoint-method method-post">POST</div>
+        <div class="endpoint-path">/api/auth/register</div>
+        <div class="endpoint-auth"><span class="badge badge-noauth">No Auth</span></div>
+      </div>
+      <div class="endpoint-body">
+        <p>Register a new BradPay wallet. Requires Firebase Auth token in header.</p>
+        <h4>Request Body</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th></th><th>Description</th></tr>
+          <tr><td>pin</td><td class="type">string</td><td class="required">required</td><td>4-6 digit transaction PIN</td></tr>
+          <tr><td>name</td><td class="type">string</td><td></td><td>Display name</td></tr>
+          <tr><td>phone</td><td class="type">string</td><td></td><td>Phone number (254 format)</td></tr>
+        </table>
+        <h4>Response 201</h4>
+        <pre>{
+  "uid": "abc123...",
+  "displayName": "John Doe",
+  "phone": "254712345678",
+  "balance": 0
+}</pre>
+      </div>
+    </div>
+
+    <!-- Transactions -->
+    <h3>Transactions</h3>
+
+    <div class="endpoint">
+      <div class="endpoint-head endpoint-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+        <div class="endpoint-method method-get">GET</div>
+        <div class="endpoint-path">/api/transactions/balance</div>
+        <div class="endpoint-auth"><span class="badge badge-auth">Auth</span></div>
+      </div>
+      <div class="endpoint-body">
+        <p>Get the current user's KES balance (in cents, so 5000 = KES 50.00).</p>
+        <h4>Response 200</h4>
+        <pre>{
+  "balance": 100000
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-head endpoint-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+        <div class="endpoint-method method-post">POST</div>
+        <div class="endpoint-path">/api/transactions/send</div>
+        <div class="endpoint-auth"><span class="badge badge-auth">Auth</span></div>
+      </div>
+      <div class="endpoint-body">
+        <p>Send KES to another BradPay user. Amount is in cents.</p>
+        <h4>Request Body</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th></th><th>Description</th></tr>
+          <tr><td>recipient_uid</td><td class="type">string</td><td class="required">required</td><td>Recipient's Firebase UID</td></tr>
+          <tr><td>amount</td><td class="type">integer</td><td class="required">required</td><td>Amount in KES cents</td></tr>
+          <tr><td>pin</td><td class="type">string</td><td class="required">required</td><td>Your transaction PIN</td></tr>
+          <tr><td>note</td><td class="type">string</td><td></td><td>Optional note</td></tr>
+        </table>
+        <h4>Response 200</h4>
+        <pre>{
+  "message": "Transaction successful",
+  "tx_ref": "TX-abc123",
+  "balance": 95000
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-head endpoint-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+        <div class="endpoint-method method-get">GET</div>
+        <div class="endpoint-path">/api/transactions/history</div>
+        <div class="endpoint-auth"><span class="badge badge-auth">Auth</span></div>
+      </div>
+      <div class="endpoint-body">
+        <p>Get the user's recent transaction history.</p>
+        <h4>Response 200</h4>
+        <pre>{
+  "transactions": [
+    {
+      "id": 1,
+      "tx_ref": "TX-abc123",
+      "sender_uid": "...",
+      "recipient_uid": "...",
+      "amount": 50000,
+      "fee": 0,
+      "status": "completed",
+      "created_at": "2026-06-28T12:00:00Z"
+    }
+  ]
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-head endpoint-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+        <div class="endpoint-method method-get">GET</div>
+        <div class="endpoint-path">/api/transactions/lookup?q={email|phone|uid}</div>
+        <div class="endpoint-auth"><span class="badge badge-auth">Auth</span></div>
+      </div>
+      <div class="endpoint-body">
+        <p>Look up a user by email, phone number, or UID.</p>
+        <h4>Query Parameters</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th></th><th>Description</th></tr>
+          <tr><td>q</td><td class="type">string</td><td class="required">required</td><td>Email, phone (254 format), or UID</td></tr>
+        </table>
+        <h4>Response 200</h4>
+        <pre>{
+  "uid": "abc123...",
+  "displayName": "John Doe",
+  "email": "john@example.com",
+  "phone": "254712345678"
+}</pre>
+      </div>
+    </div>
+
+    <!-- M-PESA Daraja -->
+    <h3>M-PESA Daraja</h3>
+
+    <div class="endpoint">
+      <div class="endpoint-head endpoint-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+        <div class="endpoint-method method-post">POST</div>
+        <div class="endpoint-path">/api/daraja/stkpush</div>
+        <div class="endpoint-auth"><span class="badge badge-auth">Auth</span></div>
+      </div>
+      <div class="endpoint-body">
+        <p>Initiate an M-PESA STK Push to deposit funds. Sends a payment prompt to the user's phone.</p>
+        <h4>Request Body</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th></th><th>Description</th></tr>
+          <tr><td>amount</td><td class="type">integer</td><td class="required">required</td><td>Amount in KES cents (min 100)</td></tr>
+          <tr><td>phone</td><td class="type">string</td><td class="required">required</td><td>Phone in 254 format (e.g. 254712345678)</td></tr>
+        </table>
+        <h4>Response 200</h4>
+        <pre>{
+  "checkout_id": "ws_CO_280620261200000000",
+  "message": "STK Push sent. Check your phone to complete payment."
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-head endpoint-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+        <div class="endpoint-method method-post">POST</div>
+        <div class="endpoint-path">/api/daraja/callback</div>
+        <div class="endpoint-auth"><span class="badge badge-noauth">No Auth</span></div>
+      </div>
+      <div class="endpoint-body">
+        <p>Safaricom calls this endpoint after a customer completes (or fails) the STK Push. This endpoint credits the user's balance on success.</p>
+        <p class="subtitle" style="margin-top:8px;">Handled automatically — no developer action needed.</p>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-head endpoint-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+        <div class="endpoint-method method-post">POST</div>
+        <div class="endpoint-path">/api/daraja/b2c</div>
+        <div class="endpoint-auth"><span class="badge badge-auth">Auth</span></div>
+      </div>
+      <div class="endpoint-body">
+        <p>Withdraw funds from BradPay to the user's M-PESA account (Business to Customer).</p>
+        <h4>Request Body</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th></th><th>Description</th></tr>
+          <tr><td>amount</td><td class="type">integer</td><td class="required">required</td><td>Amount in KES cents (min 100)</td></tr>
+          <tr><td>phone</td><td class="type">string</td><td class="required">required</td><td>Phone in 254 format</td></tr>
+        </table>
+        <h4>Response 200</h4>
+        <pre>{
+  "conversation_id": "AG_28062026_000000",
+  "message": "Withdrawal initiated. Funds will be sent to your M-PESA."
+}</pre>
+      </div>
+    </div>
+
+    <!-- Ledger -->
+    <h3>BradLedger Blockchain</h3>
+
+    <div class="endpoint">
+      <div class="endpoint-head endpoint-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+        <div class="endpoint-method method-get">GET</div>
+        <div class="endpoint-path">/api/ledger/status</div>
+        <div class="endpoint-auth"><span class="badge badge-noauth">No Auth</span></div>
+      </div>
+      <div class="endpoint-body">
+        <p>Get the current blockchain status.</p>
+        <h4>Response 200</h4>
+        <pre>{
+  "blocks": 42,
+  "valid": true,
+  "difficulty": 4,
+  "last_block_hash": "0000abc...",
+  "pending_transactions": 3
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-head endpoint-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+        <div class="endpoint-method method-get">GET</div>
+        <div class="endpoint-path">/api/ledger/chain?per_page=20&page=1</div>
+        <div class="endpoint-auth"><span class="badge badge-noauth">No Auth</span></div>
+      </div>
+      <div class="endpoint-body">
+        <p>View the full blockchain with pagination.</p>
+        <h4>Response 200</h4>
+        <pre>{
+  "chain": [
+    {
+      "index": 0,
+      "timestamp": "2026-01-01T00:00:00",
+      "transactions": [],
+      "previous_hash": "0",
+      "hash": "0000...",
+      "nonce": 0
+    }
+  ],
+  "total_blocks": 42,
+  "page": 1,
+  "per_page": 20
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-head endpoint-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+        <div class="endpoint-method method-get">GET</div>
+        <div class="endpoint-path">/api/ledger/block/{index}</div>
+        <div class="endpoint-auth"><span class="badge badge-noauth">No Auth</span></div>
+      </div>
+      <div class="endpoint-body">
+        <p>Get a specific block by index number.</p>
+        <h4>Response 200</h4>
+        <pre>{
+  "block": { "index": 1, "hash": "...", "transactions": [...] }
+}</pre>
+      </div>
+    </div>
+
+    <!-- Trade -->
+    <h3>BradTrade Exchange</h3>
+
+    <div class="endpoint">
+      <div class="endpoint-head endpoint-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+        <div class="endpoint-method method-get">GET</div>
+        <div class="endpoint-path">/api/trade/orderbook</div>
+        <div class="endpoint-auth"><span class="badge badge-noauth">No Auth</span></div>
+      </div>
+      <div class="endpoint-body">
+        <p>Get the current buy/sell order book.</p>
+        <h4>Response 200</h4>
+        <pre>{
+  "bids": [["50.00", "10000"], ...],
+  "asks": [["60.00", "5000"], ...]
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-head endpoint-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+        <div class="endpoint-method method-post">POST</div>
+        <div class="endpoint-path">/api/trade/orders</div>
+        <div class="endpoint-auth"><span class="badge badge-auth">Auth</span></div>
+      </div>
+      <div class="endpoint-body">
+        <p>Place a new buy or sell order.</p>
+        <h4>Request Body</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th></th><th>Description</th></tr>
+          <tr><td>type</td><td class="type">string</td><td class="required">required</td><td>"buy" or "sell"</td></tr>
+          <tr><td>price</td><td class="type">integer</td><td class="required">required</td><td>Price in cents per KES</td></tr>
+          <tr><td>amount</td><td class="type">integer</td><td class="required">required</td><td>Amount in cents</td></tr>
+        </table>
+        <h4>Response 201</h4>
+        <pre>{
+  "message": "Order placed",
+  "order": { "id": 1, "type": "buy", "price": 5000, "amount": 10000, "status": "open" }
+}</pre>
+      </div>
+    </div>
+
+    <!-- USSD -->
+    <h3>BradUSSD</h3>
+
+    <div class="endpoint">
+      <div class="endpoint-head endpoint-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+        <div class="endpoint-method method-post">POST</div>
+        <div class="endpoint-path">/api/ussd/callback</div>
+        <div class="endpoint-auth"><span class="badge badge-noauth">No Auth</span></div>
+      </div>
+      <div class="endpoint-body">
+        <p>Africa's Talking-compatible USSD callback. The USSD gateway sends user input here and we return the next menu screen.</p>
+        <h4>Request Body</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+          <tr><td>sessionId</td><td class="type">string</td><td>USSD session ID</td></tr>
+          <tr><td>phoneNumber</td><td class="type">string</td><td>Caller's phone number (e.g. +254712345678)</td></tr>
+          <tr><td>text</td><td class="type">string</td><td>User input so far, * separated</td></tr>
+          <tr><td>serviceCode</td><td class="type">string</td><td>The USSD code dialed</td></tr>
+        </table>
+        <h4>Response 200</h4>
+        <pre>{
+  "response": "CON BradPay\n1. Check Balance\n2. Send Money"
+}</pre>
+        <p><code>CON</code> continues the session, <code>END</code> ends it.</p>
+      </div>
+    </div>
+
+    <h2>Errors</h2>
+    <p>All endpoints return standard HTTP status codes:</p>
+    <ul>
+      <li><strong>200</strong> — Success</li>
+      <li><strong>201</strong> — Created (resource created)</li>
+      <li><strong>400</strong> — Bad Request (missing or invalid fields)</li>
+      <li><strong>401</strong> — Unauthorized (missing/invalid auth token)</li>
+      <li><strong>404</strong> — Not Found</li>
+      <li><strong>502</strong> — Bad Gateway (upstream API failure, e.g. M-PESA)</li>
+    </ul>
+    <p>Error responses follow the format:</p>
+    <pre>{
+  "error": "Description of what went wrong"
+}</pre>
+
+    <h2>Data Formats</h2>
+    <ul>
+      <li><strong>Amounts:</strong> All monetary values are in KES <strong>cents</strong> (1 KES = 100 cents). Divide by 100 for display.</li>
+      <li><strong>Phone Numbers:</strong> International format without leading + (e.g. 254712345678).</li>
+      <li><strong>Timestamps:</strong> ISO 8601 format (e.g. 2026-06-28T12:00:00Z).</li>
+    </ul>
+
+    <h2>Rate Limits</h2>
+    <p>Public endpoints are rate-limited to 60 requests per minute per IP. Authenticated endpoints allow 300 requests per minute.</p>
+
+    <h2>Support</h2>
+    <p>For API support, contact <a href="mailto:api@bradpay.co.ke" style="color:var(--primary)">api@bradpay.co.ke</a>.</p>
+  </div>
+
+  <script>
+    // Toggle endpoint details
+    document.querySelectorAll('.endpoint-toggle').forEach(el => {
+      el.style.cursor = 'pointer';
+      el.addEventListener('click', () => {
+        const body = el.nextElementSibling;
+        body.classList.toggle('open');
+      });
+    });
+  </script>
+</body>
+</html>
