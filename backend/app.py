@@ -14,6 +14,9 @@ def create_app():
     app.config.from_object(Config)
     CORS(app, resources={r"/api/*": {"origins": "*"}})
 
+    if not os.environ.get("BRADPAY_LEDGER_PATH"):
+        os.environ["BRADPAY_LEDGER_PATH"] = "/tmp/bradledger.json"
+
     app.register_blueprint(auth_bp)
     app.register_blueprint(tx_bp)
     app.register_blueprint(ledger_bp)

@@ -4,10 +4,7 @@ import os
 import threading
 from datetime import datetime, timezone
 
-LEDGER_FILE = os.environ.get(
-    "BRADPAY_LEDGER_PATH",
-    os.path.join(os.path.dirname(__file__), "bradledger.json"),
-)
+LEDGER_FILE = os.environ.get("BRADPAY_LEDGER_PATH", "")
 
 _lock = threading.Lock()
 
@@ -17,27 +14,33 @@ class BradLedger:
         self.chain = []
         self.pending_transactions = []
         self.difficulty = 4
-        self._load_or_create()
-
-    def _load_or_create(self):
-        if os.path.exists(LEDGER_FILE):
-            try:
-                with open(LEDGER_FILE) as f:
-                    data = json.load(f)
-                    self.chain = data.get("chain", [])
-                    self.pending_transactions = data.get("pending", [])
-                if not self._validate():
-                    self.chain = []
-                    self.pending_transactions = []
-                    self._create_genesis()
-                return
-            except Exception:
-                pass
+        self._read_only = False
         self._create_genesis()
+        if LEDGER_FILE:
+            try:
+                if os.path.exists(LEDGER_FILE):
+                    with open(LEDGER_FILE) as f:
+                        data = json.load(f)
+                        if data.get("chain"):
+                            self.chain = data["chain"]
+                            self.pending_transactions = data.get("pending", [])
+                            if not self._validate():
+                                self.chain = []
+                                self.pending_transactions = []
+                                self._create_genesis()
+            except Exception:
+                self.chain = []
+                self.pending_transactions = []
+                self._create_genesis()
 
     def _save(self):
-        with open(LEDGER_FILE, "w") as f:
-            json.dump({"chain": self.chain, "pending": self.pending_transactions}, f, indent=2)
+        if not LEDGER_FILE:
+            return
+        try:
+            with open(LEDGER_FILE, "w") as f:
+                json.dump({"chain": self.chain, "pending": self.pending_transactions}, f, indent=2)
+        except OSError:
+            pass
 
     def _create_genesis(self):
         genesis = {
