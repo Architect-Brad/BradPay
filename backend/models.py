@@ -97,10 +97,10 @@ def get_user_by_id(user_id):
     return dict(user) if user else None
 
 
-def verify_pin(user_id, pin):
+def verify_pin(firebase_uid, pin):
     conn = get_db()
     user = conn.execute(
-        "SELECT pin_hash FROM users WHERE id = ?", (user_id,)
+        "SELECT pin_hash FROM users WHERE firebase_uid = ?", (firebase_uid,)
     ).fetchone()
     conn.close()
     if not user:
@@ -108,41 +108,41 @@ def verify_pin(user_id, pin):
     return check_password_hash(user["pin_hash"], pin)
 
 
-def get_balance(user_id):
+def get_balance(firebase_uid):
     conn = get_db()
     user = conn.execute(
-        "SELECT balance FROM users WHERE id = ?", (user_id,)
+        "SELECT balance FROM users WHERE firebase_uid = ?", (firebase_uid,)
     ).fetchone()
     conn.close()
     return user["balance"] if user else None
 
 
-def create_transaction(sender_id, recipient_uid, amount, note=None, offline_id=None):
+def create_transaction(sender_uid, recipient_uid, amount, note=None, offline_id=None):
     conn = get_db()
     try:
+        sender = conn.execute(
+            "SELECT id, firebase_uid, balance FROM users WHERE firebase_uid = ?", (sender_uid,)
+        ).fetchone()
+        if not sender:
+            return {"error": "Sender not found"}, 404
+
         recipient = conn.execute(
             "SELECT id, balance FROM users WHERE firebase_uid = ?", (recipient_uid,)
         ).fetchone()
         if not recipient:
             return {"error": "Recipient not found"}, 404
 
-        sender = conn.execute(
-            "SELECT balance FROM users WHERE id = ?", (sender_id,)
-        ).fetchone()
-        if not sender:
-            return {"error": "Sender not found"}, 404
-
         total_amount = amount
         if sender["balance"] < total_amount:
             return {"error": "Insufficient balance"}, 400
 
         fee = 0
-        tx_ref = f"BRADPAY-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{sender_id}-{recipient['id']}"
+        tx_ref = f"BRADPAY-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{sender['id']}-{recipient['id']}"
 
         conn.execute("BEGIN TRANSACTION")
         conn.execute(
             "UPDATE users SET balance = balance - ?, updated_at = datetime('now') WHERE id = ?",
-            (total_amount, sender_id),
+            (total_amount, sender["id"]),
         )
         conn.execute(
             "UPDATE users SET balance = balance + ?, updated_at = datetime('now') WHERE id = ?",
@@ -151,7 +151,7 @@ def create_transaction(sender_id, recipient_uid, amount, note=None, offline_id=N
         conn.execute(
             """INSERT INTO transactions (tx_ref, sender_id, recipient_id, amount, fee, type, status, note, offline_id)
                VALUES (?, ?, ?, ?, ?, 'transfer', 'completed', ?, ?)""",
-            (tx_ref, sender_id, recipient["id"], amount, fee, note, offline_id),
+            (tx_ref, sender["id"], recipient["id"], amount, fee, note, offline_id),
         )
         conn.commit()
 
@@ -166,8 +166,15 @@ def create_transaction(sender_id, recipient_uid, amount, note=None, offline_id=N
         conn.close()
 
 
-def get_transactions(user_id, limit=50):
+def get_transactions(firebase_uid, limit=50):
     conn = get_db()
+    user = conn.execute(
+        "SELECT id FROM users WHERE firebase_uid = ?", (firebase_uid,)
+    ).fetchone()
+    if not user:
+        conn.close()
+        return []
+    user_id = user["id"]
     rows = conn.execute(
         """SELECT t.*,
                   u1.firebase_uid as sender_uid, u1.display_name as sender_name,

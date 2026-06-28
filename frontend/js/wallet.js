@@ -4,11 +4,12 @@ export async function getBalance() {
   return apiGet("/transactions/balance");
 }
 
-export async function sendMoney(recipient, amount, note) {
+export async function sendMoney(recipient, amount, note, pin) {
   return apiPost("/transactions/send", {
     recipient,
     amount,
     note,
+    pin,
     offlineId: generateOfflineId(),
   });
 }
@@ -30,11 +31,38 @@ export function formatAmount(cents) {
 }
 
 export function formatDate(dateStr) {
-  const d = new Date(dateStr + "Z");
+  const d = new Date(dateStr + (dateStr.endsWith("Z") || dateStr.endsWith("+") ? "" : "Z"));
   return d.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+  });
+}
+
+export function generateQR(text, size = 280) {
+  const canvas = document.createElement("canvas");
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}`;
+
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      canvas.width = size;
+      canvas.height = size;
+      canvas.getContext("2d").drawImage(img, 0, 0, size, size);
+      resolve(canvas);
+    };
+    img.onerror = () => {
+      // Fallback: use inline QR
+      const { generateQR: inlineQR } = { generateQR: null };
+      reject(new Error("QR server unavailable"));
+    };
+    img.src = qrUrl;
+
+    // Timeout fallback after 3s
+    setTimeout(() => {
+      if (!img.complete) reject(new Error("QR timeout"));
+    }, 3000);
   });
 }

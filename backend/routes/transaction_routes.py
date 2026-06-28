@@ -4,7 +4,9 @@ from data import (
     create_transaction,
     get_transactions,
     get_user_by_firebase_uid,
+    get_user_by_phone_or_email,
     get_balance,
+    verify_pin,
 )
 
 tx_bp = Blueprint("transactions", __name__, url_prefix="/api/transactions")
@@ -25,10 +27,17 @@ def send():
     recipient_uid = data.get("recipientUid") or data.get("recipient")
     amount = data.get("amount")
     note = data.get("note")
+    pin = data.get("pin")
     offline_id = data.get("offlineId")
 
     if not recipient_uid:
         return jsonify({"error": "Recipient UID is required"}), 400
+
+    if not pin:
+        return jsonify({"error": "PIN is required to send money"}), 400
+
+    if not verify_pin(g.firebase_uid, pin):
+        return jsonify({"error": "Incorrect PIN"}), 403
 
     try:
         amount = int(amount)
@@ -38,16 +47,18 @@ def send():
         return jsonify({"error": "Invalid amount"}), 400
 
     result = create_transaction(
-        sender_id=g.current_user["id"],
+        sender_uid=g.firebase_uid,
         recipient_uid=recipient_uid,
         amount=amount,
         note=note,
         offline_id=offline_id,
     )
 
+    if isinstance(result, tuple):
+        return jsonify(result[0]), result[1]
+
     if isinstance(result, dict) and "error" in result:
-        status = result.get("_status", 400)
-        return jsonify(result), status
+        return jsonify(result), 400
 
     return jsonify({"message": "Transfer successful", "transaction": result}), 201
 
@@ -57,7 +68,7 @@ def send():
 @require_user
 def history():
     limit = request.args.get("limit", 50, type=int)
-    txs = get_transactions(g.current_user["id"], limit=min(limit, 200))
+    txs = get_transactions(g.firebase_uid, limit=min(limit, 200))
     return jsonify({"transactions": txs})
 
 
@@ -69,14 +80,18 @@ def lookup():
     identifier = data.get("identifier")
     if not identifier:
         return jsonify({"error": "Email, phone, or UID is required"}), 400
+    identifier = identifier.strip()
 
     user = get_user_by_firebase_uid(identifier)
+    if not user:
+        user = get_user_by_phone_or_email(identifier)
+
     if not user:
         return jsonify({"error": "User not found"}), 404
 
     return jsonify({
-        "uid": user["firebase_uid"],
-        "displayName": user["display_name"],
-        "email": user["email"],
-        "phone": user["phone"],
+        "uid": user.get("firebase_uid") or user.get("id"),
+        "displayName": user.get("display_name") or user.get("displayName"),
+        "email": user.get("email"),
+        "phone": user.get("phone"),
     })
