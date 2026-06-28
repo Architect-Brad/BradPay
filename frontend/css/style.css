@@ -264,6 +264,82 @@ label { font-size: 14px; font-weight: 500; color: var(--text2); margin-bottom: -
 .dialog .actions { display: flex; gap: 12px; margin-top: 20px; }
 .dialog .actions .btn { flex: 1; }
 
+/* ── BradTrade ── */
+.trade-balance-bar {
+  display: flex; justify-content: space-between; font-size: 13px; color: var(--text2);
+  background: var(--bg2); padding: 10px 16px; border-radius: var(--radius-sm); margin-bottom: 12px;
+}
+.trade-tabs {
+  display: flex; gap: 4px; margin-bottom: 16px; overflow-x: auto; flex-shrink: 0;
+}
+.trade-tab {
+  flex: 1; padding: 10px 8px; border: none; border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  background: var(--bg2); color: var(--text2); transition: all 0.2s;
+}
+.trade-tab.active { background: var(--primary); color: white; }
+.trade-tab:hover:not(.active) { background: var(--bg3); }
+.trade-panel { display: none; flex-direction: column; gap: 12px; flex: 1; }
+.trade-panel.active { display: flex; }
+
+/* Order Book */
+.ob-header {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+  font-size: 12px; color: var(--text3); padding: 8px 12px; border-bottom: 1px solid var(--bg3);
+  text-align: right;
+}
+.ob-header span:first-child { text-align: left; }
+.ob-row {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+  padding: 6px 12px; font-size: 13px; border-radius: 4px; text-align: right;
+  font-family: 'Courier New', monospace;
+}
+.ob-row:hover { background: var(--bg2); }
+.ob-row span:first-child { text-align: left; }
+.ob-row.ask { color: var(--danger); }
+.ob-row.bid { color: var(--success); }
+.ob-price { font-weight: 700; }
+.ob-empty { text-align: center; padding: 20px; color: var(--text3); font-size: 13px; }
+.ob-spread {
+  text-align: center; padding: 10px; font-size: 12px; color: var(--text2);
+  border-top: 1px solid var(--bg3); border-bottom: 1px solid var(--bg3); margin: 4px 0;
+}
+
+/* Order Form */
+.order-type-toggle { display: flex; gap: 8px; margin-bottom: 4px; }
+.order-type-toggle .btn { flex: 1; }
+
+/* My Orders */
+.my-orders-list { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.order-item {
+  background: var(--bg2); border-radius: var(--radius-sm); padding: 12px 14px; border-left: 3px solid var(--bg3);
+}
+.order-item.buy { border-left-color: var(--success); }
+.order-item.sell { border-left-color: var(--danger); }
+.order-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.order-type-badge {
+  font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;
+}
+.order-type-badge.buy { background: rgba(34,197,94,0.15); color: var(--success); }
+.order-type-badge.sell { background: rgba(239,68,68,0.15); color: var(--danger); }
+.order-status { font-size: 11px; text-transform: uppercase; }
+.status-open { color: var(--text2); }
+.status-partial { color: var(--warning); }
+.status-filled { color: var(--success); }
+.status-cancelled { color: var(--text3); }
+.order-details { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--text2); }
+
+/* Trade History */
+.trade-record {
+  background: var(--bg2); border-radius: var(--radius-sm); padding: 12px 14px;
+}
+.trade-record-header { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.trade-side-label { font-size: 12px; font-weight: 700; }
+.trade-side-label.buy { color: var(--success); }
+.trade-side-label.sell { color: var(--danger); }
+.trade-record-date { font-size: 11px; color: var(--text3); }
+.trade-record-details { display: flex; justify-content: space-between; font-size: 12px; color: var(--text2); }
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }

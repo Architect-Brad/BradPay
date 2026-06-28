@@ -28,9 +28,43 @@ def init_db():
             phone TEXT,
             pin_hash TEXT NOT NULL,
             balance INTEGER NOT NULL DEFAULT 0,
+            locked_balance INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+                CREATE TABLE IF NOT EXISTS orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_uid TEXT NOT NULL,
+            type TEXT NOT NULL CHECK(type IN ('buy','sell')),
+            price INTEGER NOT NULL,
+            amount INTEGER NOT NULL,
+            filled INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'open',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (user_uid) REFERENCES users(firebase_uid)
+        );
+
+        CREATE TABLE IF NOT EXISTS trades (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            buy_order_id INTEGER NOT NULL,
+            sell_order_id INTEGER NOT NULL,
+            buyer_uid TEXT NOT NULL,
+            seller_uid TEXT NOT NULL,
+            amount INTEGER NOT NULL,
+            price INTEGER NOT NULL,
+            buyer_fee INTEGER NOT NULL DEFAULT 0,
+            seller_fee INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (buy_order_id) REFERENCES orders(id),
+            FOREIGN KEY (sell_order_id) REFERENCES orders(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_uid);
+        CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+        CREATE INDEX IF NOT EXISTS idx_orders_type_price ON orders(type, price);
+        CREATE INDEX IF NOT EXISTS idx_trades_buyer ON trades(buyer_uid);
+        CREATE INDEX IF NOT EXISTS idx_trades_seller ON trades(seller_uid);
 
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -196,6 +230,207 @@ def get_user_by_phone_or_email(identifier):
     user = conn.execute(
         "SELECT * FROM users WHERE email = ? OR phone = ?",
         (identifier, identifier),
+    ).fetchone()
+    conn.close()
+    return dict(user) if user else None
+
+
+# ── BradTrade ──
+
+def create_order(user_uid, order_type, price, amount):
+    conn = get_db()
+    try:
+        user = conn.execute(
+            "SELECT id, balance, locked_balance FROM users WHERE firebase_uid = ?",
+            (user_uid,),
+        ).fetchone()
+        if not user:
+            return {"error": "User not found"}, 404
+
+        if order_type == "sell":
+            available = user["balance"] - (user["locked_balance"] or 0)
+            if available < amount:
+                return {"error": "Insufficient available balance"}, 400
+            conn.execute(
+                "UPDATE users SET locked_balance = COALESCE(locked_balance, 0) + ? WHERE firebase_uid = ?",
+                (amount, user_uid),
+            )
+
+        conn.execute(
+            """INSERT INTO orders (user_uid, type, price, amount)
+               VALUES (?, ?, ?, ?)""",
+            (user_uid, order_type, price, amount),
+        )
+        conn.commit()
+        order = conn.execute(
+            "SELECT * FROM orders WHERE id = last_insert_rowid()"
+        ).fetchone()
+        return dict(order)
+    except Exception as e:
+        conn.rollback()
+        return {"error": str(e)}, 500
+    finally:
+        conn.close()
+
+
+def cancel_order(user_uid, order_id):
+    conn = get_db()
+    try:
+        order = conn.execute(
+            "SELECT * FROM orders WHERE id = ? AND user_uid = ?",
+            (order_id, user_uid),
+        ).fetchone()
+        if not order:
+            return {"error": "Order not found"}, 404
+        if order["status"] not in ("open", "partial"):
+            return {"error": "Order cannot be cancelled"}, 400
+
+        remaining = order["amount"] - order["filled"]
+        if order["type"] == "sell" and remaining > 0:
+            conn.execute(
+                "UPDATE users SET locked_balance = MAX(COALESCE(locked_balance,0) - ?, 0) WHERE firebase_uid = ?",
+                (remaining, user_uid),
+            )
+
+        conn.execute(
+            "UPDATE orders SET status = 'cancelled' WHERE id = ?", (order_id,)
+        )
+        conn.commit()
+        return {"message": "Order cancelled", "order_id": order_id}
+    except Exception as e:
+        conn.rollback()
+        return {"error": str(e)}, 500
+    finally:
+        conn.close()
+
+
+def get_orders(user_uid, status_filter=None):
+    conn = get_db()
+    try:
+        if status_filter:
+            rows = conn.execute(
+                "SELECT * FROM orders WHERE user_uid = ? AND status = ? ORDER BY created_at DESC",
+                (user_uid, status_filter),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM orders WHERE user_uid = ? ORDER BY created_at DESC",
+                (user_uid,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_order_book(limit=15):
+    conn = get_db()
+    try:
+        buys = conn.execute(
+            """SELECT * FROM orders WHERE type='buy' AND status IN ('open','partial')
+               ORDER BY price DESC, created_at ASC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+
+        sells = conn.execute(
+            """SELECT * FROM orders WHERE type='sell' AND status IN ('open','partial')
+               ORDER BY price ASC, created_at ASC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+
+        buy_agg = {}
+        for o in buys:
+            d = dict(o)
+            p = d["price"]
+            remaining = d["amount"] - d["filled"]
+            if p in buy_agg:
+                buy_agg[p]["amount"] += remaining
+                buy_agg[p]["count"] += 1
+            else:
+                buy_agg[p] = {"price": p, "amount": remaining, "count": 1}
+
+        sell_agg = {}
+        for o in sells:
+            d = dict(o)
+            p = d["price"]
+            remaining = d["amount"] - d["filled"]
+            if p in sell_agg:
+                sell_agg[p]["amount"] += remaining
+                sell_agg[p]["count"] += 1
+            else:
+                sell_agg[p] = {"price": p, "amount": remaining, "count": 1}
+
+        return {
+            "bids": sorted(buy_agg.values(), key=lambda x: -x["price"]),
+            "asks": sorted(sell_agg.values(), key=lambda x: x["price"]),
+        }
+    finally:
+        conn.close()
+
+
+def execute_trade(buy_order_id, sell_order_id, buyer_uid, seller_uid, amount, price):
+    conn = get_db()
+    try:
+        buyer_fee = max(1, amount // 1000)
+        seller_fee = max(1, amount // 1000)
+        seller_payout = amount - seller_fee
+
+        conn.execute("BEGIN TRANSACTION")
+
+        conn.execute(
+            "UPDATE users SET balance = balance + ? WHERE firebase_uid = ?",
+            (amount - buyer_fee, buyer_uid),
+        )
+        conn.execute(
+            "UPDATE users SET balance = balance - ?, locked_balance = MAX(COALESCE(locked_balance,0) - ?, 0) WHERE firebase_uid = ?",
+            (amount, amount, seller_uid),
+        )
+
+        conn.execute(
+            """INSERT INTO trades (buy_order_id, sell_order_id, buyer_uid, seller_uid, amount, price, buyer_fee, seller_fee)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (buy_order_id, sell_order_id, buyer_uid, seller_uid, amount, price, buyer_fee, seller_fee),
+        )
+
+        conn.execute(
+            "UPDATE orders SET filled = filled + ?, status = CASE WHEN filled + ? >= amount THEN 'filled' ELSE 'partial' END WHERE id = ?",
+            (amount, amount, buy_order_id),
+        )
+        conn.execute(
+            "UPDATE orders SET filled = filled + ?, status = CASE WHEN filled + ? >= amount THEN 'filled' ELSE 'partial' END WHERE id = ?",
+            (amount, amount, sell_order_id),
+        )
+
+        conn.commit()
+        return {"success": True, "amount": amount, "price": price}
+    except Exception as e:
+        conn.rollback()
+        return {"error": str(e), "success": False}
+    finally:
+        conn.close()
+
+
+def get_trades(user_uid=None, limit=50):
+    conn = get_db()
+    try:
+        if user_uid:
+            rows = conn.execute(
+                """SELECT * FROM trades WHERE buyer_uid = ? OR seller_uid = ?
+                   ORDER BY created_at DESC LIMIT ?""",
+                (user_uid, user_uid, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM trades ORDER BY created_at DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_user_with_locked(firebase_uid):
+    conn = get_db()
+    user = conn.execute(
+        "SELECT * FROM users WHERE firebase_uid = ?", (firebase_uid,)
     ).fetchone()
     conn.close()
     return dict(user) if user else None

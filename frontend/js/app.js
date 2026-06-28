@@ -1,6 +1,7 @@
 import { firebaseConfig } from "./firebase-config.js";
 import { initAuth, registerUser, getIdToken, getCurrentUser } from "./auth.js";
 import { getBalance, sendMoney, getHistory, lookupUser, formatAmount, formatDate } from "./wallet.js";
+import { initTrade, refreshTradeScreen } from "./trade.js";
 
 const { initializeApp } = await import("firebase/app");
 const app = initializeApp(firebaseConfig);
@@ -39,6 +40,9 @@ function showScreen(name, push = true) {
   } else if (name === "ledger") {
     refreshLedger();
     stopPolling();
+  } else if (name === "trade") {
+    refreshTradeScreen();
+    stopPolling();
   } else {
     stopPolling();
   }
@@ -61,6 +65,7 @@ registerScreen("dashboard", $("dashboard-screen"));
 registerScreen("send", $("send-screen"));
 registerScreen("receive", $("receive-screen"));
 registerScreen("ledger", $("ledger-screen"));
+registerScreen("trade", $("trade-screen"));
 
 function showToast(message, type = "info") {
   const container = $("toast-container");
@@ -484,6 +489,7 @@ async function init() {
       screenStack = ["dashboard"];
       showScreen("dashboard", false);
       renderQR();
+      initTrade();
     } else {
       showScreen("register");
     }
@@ -545,9 +551,14 @@ document.addEventListener("DOMContentLoaded", () => {
   $("action-ledger").onclick = () => {
     showScreen("ledger");
   };
+  $("action-trade").onclick = () => {
+    refreshTradeScreen();
+    showScreen("trade");
+  };
   $("send-back").onclick = goBack;
   $("receive-back").onclick = goBack;
   $("ledger-back").onclick = goBack;
+  $("trade-back").onclick = goBack;
 
   $("send-submit").onclick = handleSend;
   $("send-amount").onkeydown = (e) => { if (e.key === "Enter") handleSend(); };
