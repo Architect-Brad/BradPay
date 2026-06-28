@@ -343,6 +343,14 @@ label { font-size: 14px; font-weight: 500; color: var(--text2); margin-bottom: -
 .trade-record-date { font-size: 11px; color: var(--text3); }
 .trade-record-details { display: flex; justify-content: space-between; font-size: 12px; color: var(--text2); }
 
+/* Footer */
+.auth-footer { text-align: center; font-size: 12px; color: var(--text3); margin-top: 20px; padding: 12px 0; }
+.auth-footer a { color: var(--text3); text-decoration: none; }
+.auth-footer a:hover { color: var(--primary-light); }
+.global-footer { text-align: center; font-size: 12px; color: var(--text3); padding: 16px 20px; border-top: 1px solid var(--bg3); margin-top: auto; }
+.global-footer a { color: var(--text3); text-decoration: none; }
+.global-footer a:hover { color: var(--primary-light); }
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
