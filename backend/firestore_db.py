@@ -19,9 +19,15 @@ def get_firestore():
         service_account_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
         if service_account_json:
             cred = credentials.Certificate(json.loads(service_account_json))
-            firebase_admin.initialize_app(cred)
+            try:
+                firebase_admin.initialize_app(cred)
+            except ValueError:
+                pass
         else:
-            firebase_admin.initialize_app()
+            try:
+                firebase_admin.initialize_app()
+            except ValueError:
+                pass
 
         _db = fs.Client()
     return _db
