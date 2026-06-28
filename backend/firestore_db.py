@@ -247,46 +247,46 @@ def get_orders(user_uid, status_filter=None):
 
 def get_order_book(limit=15):
     db = get_firestore()
-    buy_docs = (
-        _orders_collection()
-        .where("type", "==", "buy")
-        .where("status", "in", ["open", "partial"])
-        .order_by("price", direction=_desc())
-        .order_by("created_at")
-        .limit(limit)
-        .stream()
-    )
-    sell_docs = (
-        _orders_collection()
-        .where("type", "==", "sell")
-        .where("status", "in", ["open", "partial"])
-        .order_by("price")
-        .order_by("created_at")
-        .limit(limit)
-        .stream()
-    )
-
+    col = _orders_collection()
     buy_agg = {}
-    for d in buy_docs:
-        o = d.to_dict()
-        p = o["price"]
-        remaining = o["amount"] - o.get("filled", 0)
-        if p in buy_agg:
-            buy_agg[p]["amount"] += remaining
-            buy_agg[p]["count"] += 1
-        else:
-            buy_agg[p] = {"price": p, "amount": remaining, "count": 1}
-
     sell_agg = {}
-    for d in sell_docs:
-        o = d.to_dict()
-        p = o["price"]
-        remaining = o["amount"] - o.get("filled", 0)
-        if p in sell_agg:
-            sell_agg[p]["amount"] += remaining
-            sell_agg[p]["count"] += 1
-        else:
-            sell_agg[p] = {"price": p, "amount": remaining, "count": 1}
+
+    for status in ("open", "partial"):
+        buy_docs = (
+            col.where("type", "==", "buy")
+            .where("status", "==", status)
+            .order_by("price", direction=_desc())
+            .order_by("created_at")
+            .limit(limit)
+            .stream()
+        )
+        for d in buy_docs:
+            o = d.to_dict()
+            p = o["price"]
+            remaining = o["amount"] - o.get("filled", 0)
+            if p in buy_agg:
+                buy_agg[p]["amount"] += remaining
+                buy_agg[p]["count"] += 1
+            else:
+                buy_agg[p] = {"price": p, "amount": remaining, "count": 1}
+
+        sell_docs = (
+            col.where("type", "==", "sell")
+            .where("status", "==", status)
+            .order_by("price")
+            .order_by("created_at")
+            .limit(limit)
+            .stream()
+        )
+        for d in sell_docs:
+            o = d.to_dict()
+            p = o["price"]
+            remaining = o["amount"] - o.get("filled", 0)
+            if p in sell_agg:
+                sell_agg[p]["amount"] += remaining
+                sell_agg[p]["count"] += 1
+            else:
+                sell_agg[p] = {"price": p, "amount": remaining, "count": 1}
 
     return {
         "bids": sorted(buy_agg.values(), key=lambda x: -x["price"]),
