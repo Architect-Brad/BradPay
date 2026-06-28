@@ -252,9 +252,10 @@ def get_orders(user_uid, status_filter=None):
     query = _orders_collection().where("user_uid", "==", user_uid)
     if status_filter:
         query = query.where("status", "==", status_filter)
-    query = query.order_by("created_at", direction=_desc())
     docs = query.stream()
-    return [{"id": d.id, **d.to_dict()} for d in docs]
+    results = [{"id": d.id, **d.to_dict()} for d in docs]
+    results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return results
 
 
 def get_order_book(limit=15):

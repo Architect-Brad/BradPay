@@ -12,11 +12,11 @@ def get_orders_at_price(order_type, price):
                 .where("type", "==", order_type)
                 .where("price", "==", price)
                 .where("status", "==", status)
-                .order_by("created_at")
                 .stream()
             )
             for d in docs:
                 results.append({"id": d.id, **d.to_dict()})
+        results.sort(key=lambda x: x.get("created_at", ""))
         return results
     else:
         from models import get_db
