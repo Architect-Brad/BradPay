@@ -2,7 +2,7 @@ from flask import Flask, send_from_directory
 from flask_cors import CORS
 import os
 from config import Config
-from models import init_db
+from data import init_db
 from routes.auth_routes import auth_bp
 from routes.transaction_routes import tx_bp
 

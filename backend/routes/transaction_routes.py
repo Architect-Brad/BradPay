@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, g
 from routes.auth_routes import require_auth, require_user
-from models import (
+from data import (
     create_transaction,
     get_transactions,
     get_user_by_firebase_uid,
