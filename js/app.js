@@ -316,26 +316,51 @@ async function handleAuth(email, password) {
 }
 
 async function handleRegister() {
+  const email = $("reg-email").value.trim();
+  const password = $("reg-password").value;
+  const name = $("reg-name").value.trim();
+  const phone = $("reg-phone").value.trim();
   const pin = $("reg-pin").value;
   const pinConfirm = $("reg-pin-confirm").value;
-  const name = $("reg-name").value;
-  const phone = $("reg-phone").value;
 
+  if (!email) { showToast("Email is required", "error"); return; }
+  if (!password || password.length < 6) { showToast("Password must be at least 6 characters", "error"); return; }
   if (!name) { showToast("Name is required", "error"); return; }
   if (pin !== pinConfirm) { showToast("PINs don't match", "error"); return; }
   if (pin.length < 4) { showToast("PIN must be at least 4 digits", "error"); return; }
 
   setLoading($("register-submit"), true);
   try {
-    const result = await registerUser(pin, name, phone || undefined);
-    if (result.error) { showToast(result.error, "error"); return; }
-    showToast("Wallet created!", "success");
-    showScreen("dashboard");
+    const { createUserWithEmailAndPassword } = authFns;
+    await createUserWithEmailAndPassword(auth, email, password);
   } catch (e) {
-    showToast("Registration failed", "error");
-  } finally {
+    const msg = e.code === "auth/email-already-in-use" ? "Email already in use" :
+                e.code === "auth/weak-password" ? "Password too weak (min 6 chars)" :
+                e.message || "Account creation failed";
+    $("register-error").textContent = msg;
+    $("register-error").style.display = "block";
     setLoading($("register-submit"), false);
+    return;
   }
+
+  // Auth state change will fire and init() will call checkRegistration()
+  // Wait a tick for the token to be set, then register the wallet
+  setTimeout(async () => {
+    try {
+      const result = await registerUser(pin, name, phone || undefined);
+      if (result.error) {
+        showToast(result.error, "error");
+        setLoading($("register-submit"), false);
+        return;
+      }
+      showToast("Wallet created!", "success");
+      showScreen("dashboard");
+    } catch (e) {
+      showToast("Registration failed", "error");
+    } finally {
+      setLoading($("register-submit"), false);
+    }
+  }, 500);
 }
 
 // ── Send / Recipient Lookup ──
@@ -536,7 +561,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("auth-password").onkeydown = (e) => { if (e.key === "Enter") $("auth-submit").click(); };
 
   $("register-submit").onclick = () => handleRegister();
-  $("reg-pin-confirm").onkeydown = (e) => { if (e.key === "Enter") $("register-submit").click(); };
+  $("reg-password").onkeydown = (e) => { if (e.key === "Enter") $("register-submit").click(); };
 
   $("logout-btn").onclick = async () => {
     if (authFns) {
