@@ -71,6 +71,10 @@
           <div class="icon">↓</div>
           <div class="label">Receive</div>
         </div>
+        <div class="quick-action" id="action-ledger">
+          <div class="icon">🔗</div>
+          <div class="label">Ledger</div>
+        </div>
       </div>
 
       <div class="section-title">Recent Transactions</div>
@@ -105,6 +109,38 @@
         <div class="receive-uid" id="receive-uid">---</div>
         <div class="receive-hint">Share this ID or your email with the sender</div>
         <button class="btn btn-secondary btn-full" id="receive-copy">Copy UID</button>
+      </div>
+    </div>
+
+    <!-- Ledger / Block Explorer -->
+    <div id="ledger-screen" class="screen">
+      <div class="top-bar">
+        <div>
+          <div class="user-name">BradLedger™</div>
+          <h1>Block Explorer</h1>
+        </div>
+        <button class="btn-ghost" id="ledger-back">← Back</button>
+      </div>
+
+      <div class="ledger-stats" id="ledger-stats">
+        <div class="ledger-stat">
+          <div class="ledger-stat-value" id="ledger-blocks">0</div>
+          <div class="ledger-stat-label">Blocks</div>
+        </div>
+        <div class="ledger-stat valid">
+          <div class="ledger-stat-value" id="ledger-valid">✓</div>
+          <div class="ledger-stat-label">Chain Status</div>
+        </div>
+      </div>
+
+      <div id="ledger-pending-bar" class="pending-bar" style="display:none;">
+        <div class="pending-bar-text"><strong>Pending:</strong> <span id="pending-count">0</span> transactions awaiting mining</div>
+        <button class="btn btn-primary btn-sm" id="ledger-mine-btn">Mine Block</button>
+      </div>
+
+      <div class="section-title">Blocks</div>
+      <div class="block-list" id="block-list">
+        <div class="loading" id="block-loading"><div class="spinner"></div></div>
       </div>
     </div>
 

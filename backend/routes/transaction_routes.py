@@ -8,6 +8,7 @@ from data import (
     get_balance,
     verify_pin,
 )
+from ledger import get_ledger
 
 tx_bp = Blueprint("transactions", __name__, url_prefix="/api/transactions")
 
@@ -59,6 +60,8 @@ def send():
 
     if isinstance(result, dict) and "error" in result:
         return jsonify(result), 400
+
+    get_ledger().add_transaction(result)
 
     return jsonify({"message": "Transfer successful", "transaction": result}), 201
 

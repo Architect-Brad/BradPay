@@ -5,33 +5,62 @@ import { getBalance, sendMoney, getHistory, lookupUser, formatAmount, formatDate
 const { initializeApp } = await import("firebase/app");
 const app = initializeApp(firebaseConfig);
 
-// State
 let auth = null;
 let authFns = null;
 let isRegisterMode = false;
 let currentBalance = 0;
 let pollInterval = null;
+let screenStack = [];
 
-// DOM refs
 const $ = (id) => document.getElementById(id);
-const screens = {
-  auth: $("auth-screen"),
-  register: $("register-screen"),
-  dashboard: $("dashboard-screen"),
-  send: $("send-screen"),
-  receive: $("receive-screen"),
-};
+const screens = {};
 
-function showScreen(name) {
+function registerScreen(name, el) {
+  screens[name] = el;
+}
+
+function showScreen(name, push = true) {
+  const prev = document.querySelector(".screen.active");
+  if (prev && prev.id !== name + "-screen") {
+    prev.classList.add("slide-left");
+    setTimeout(() => prev.classList.remove("slide-left"), 300);
+  }
   Object.values(screens).forEach((s) => s.classList.remove("active"));
-  if (screens[name]) screens[name].classList.add("active");
+  const target = screens[name];
+  if (target) target.classList.add("active");
+
+  if (push && name !== "auth" && name !== "register") {
+    screenStack.push(name);
+  }
+
   if (name === "dashboard") {
     refreshDashboard();
     startPolling();
+  } else if (name === "ledger") {
+    refreshLedger();
+    stopPolling();
   } else {
     stopPolling();
   }
 }
+
+function goBack() {
+  if (screenStack.length > 1) {
+    screenStack.pop();
+    const prev = screenStack[screenStack.length - 1];
+    showScreen(prev, false);
+  } else {
+    showScreen("dashboard", false);
+  }
+}
+
+// DOM registration
+registerScreen("auth", $("auth-screen"));
+registerScreen("register", $("register-screen"));
+registerScreen("dashboard", $("dashboard-screen"));
+registerScreen("send", $("send-screen"));
+registerScreen("receive", $("receive-screen"));
+registerScreen("ledger", $("ledger-screen"));
 
 function showToast(message, type = "info") {
   const container = $("toast-container");
@@ -39,21 +68,20 @@ function showToast(message, type = "info") {
   toast.className = `toast ${type}`;
   toast.textContent = message;
   container.appendChild(toast);
-  setTimeout(() => toast.remove(), 3000);
+  setTimeout(() => toast.remove(), 3500);
 }
 
 function setLoading(el, loading) {
   if (loading) {
     el.disabled = true;
     el.dataset.text = el.textContent;
-    el.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px;"></span>';
+    el.innerHTML = '<span class="spinner spinner-sm" style="display:inline-block;"></span>';
   } else {
     el.disabled = false;
     el.textContent = el.dataset.text || el.textContent;
   }
 }
 
-// Polling for real-time updates
 function startPolling() {
   stopPolling();
   pollInterval = setInterval(refreshDashboard, 10000);
@@ -63,7 +91,7 @@ function stopPolling() {
   if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
 }
 
-// Dashboard
+// ── Dashboard ──
 async function refreshDashboard() {
   try {
     const bal = await getBalance();
@@ -75,8 +103,11 @@ async function refreshDashboard() {
     const txs = txData.transactions || [];
     const user = getCurrentUser();
 
+    const loading = $("tx-loading");
+    if (loading) loading.style.display = "none";
+
     if (txs.length === 0) {
-      list.innerHTML = '<div class="tx-empty">No transactions yet</div>';
+      list.innerHTML = '<div class="tx-empty"><div class="icon">📭</div><div>No transactions yet</div><div style="font-size:12px;color:var(--text3)">Send or receive to get started</div></div>';
       return;
     }
 
@@ -87,12 +118,13 @@ async function refreshDashboard() {
         const name = isSent
           ? (tx.recipient_name || tx.recipientName || "User")
           : (tx.sender_name || tx.senderName || "User");
+        const note = tx.note || tx.noteText || "";
         return `
-          <div class="tx-item">
+          <div class="tx-item" data-tx-id="${tx.id || tx.tx_ref || ""}">
             <div class="tx-icon ${isSent ? "sent" : "received"}">${isSent ? "↑" : "↓"}</div>
             <div class="tx-info">
               <div class="tx-name">${isSent ? "To: " : "From: "}${escapeHtml(name)}</div>
-              <div class="tx-date">${formatDate(tx.created_at)}</div>
+              <div class="tx-date">${formatDate(tx.created_at)}${note ? ` · ${escapeHtml(note)}` : ""}</div>
             </div>
             <div class="tx-amount ${isSent ? "sent" : "received"}">
               ${isSent ? "-" : "+"}${formatAmount(tx.amount)}
@@ -100,6 +132,42 @@ async function refreshDashboard() {
           </div>`;
       })
       .join("");
+
+    // Tap to expand transaction detail
+    list.querySelectorAll(".tx-item").forEach((el) => {
+      el.onclick = () => {
+        const wasExpanded = el.classList.contains("expanded");
+        list.querySelectorAll(".tx-item.expanded").forEach((e) => {
+          const detail = e.querySelector(".tx-detail");
+          if (detail) detail.remove();
+          e.classList.remove("expanded");
+        });
+        if (!wasExpanded) {
+          const idx = Array.from(list.children).indexOf(el);
+          const tx = txs[idx];
+          if (!tx) return;
+          const senderUid = tx.sender_uid || tx.sender_id;
+          const isSent = senderUid === user?.uid;
+          const detail = document.createElement("div");
+          detail.className = "tx-detail";
+          const rows = [
+            { label: "Transaction ID", value: tx.tx_ref || tx.id || "—" },
+            { label: "Type", value: isSent ? "Sent" : "Received" },
+            { label: isSent ? "Recipient" : "Sender", value: escapeHtml(isSent ? (tx.recipient_name || tx.recipientUid || "—") : (tx.sender_name || tx.senderUid || "—")) },
+            { label: "Amount", value: `${isSent ? "-" : "+"}${formatAmount(tx.amount)} BC` },
+            { label: "Date", value: formatDate(tx.created_at) },
+            { label: "Note", value: tx.note || tx.noteText || "—" },
+            { label: "Status", value: tx.status || "completed" },
+          ];
+          if (tx.fee) rows.push({ label: "Fee", value: `${formatAmount(tx.fee)} BC` });
+          detail.innerHTML = rows.map((r) =>
+            `<div class="tx-detail-row"><span class="tx-detail-label">${r.label}</span><span class="tx-detail-value">${r.value}</span></div>`
+          ).join("");
+          el.appendChild(detail);
+          el.classList.add("expanded");
+        }
+      };
+    });
   } catch (e) {
     console.error("Dashboard refresh failed:", e);
   }
@@ -112,7 +180,107 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// Auth flow
+// ── Ledger / Block Explorer ──
+async function refreshLedger() {
+  const list = $("block-list");
+  const loading = $("block-loading");
+  if (loading) loading.style.display = "flex";
+
+  try {
+    const resp = await fetch("/api/ledger/status");
+    const status = await resp.json();
+    $("ledger-blocks").textContent = status.blocks || 0;
+    $("ledger-valid").textContent = status.valid ? "✓ Valid" : "✗ Invalid";
+    const statEl = document.querySelector(".ledger-stat.valid");
+    if (statEl) {
+      statEl.classList.remove("valid", "invalid");
+      statEl.classList.add(status.valid ? "valid" : "invalid");
+    }
+
+    // Pending bar
+    const pending = status.pending_transactions || 0;
+    const pendingBar = $("ledger-pending-bar");
+    if (pending > 0) {
+      pendingBar.style.display = "flex";
+      $("pending-count").textContent = pending;
+    } else {
+      pendingBar.style.display = "none";
+    }
+
+    const chainResp = await fetch("/api/ledger/chain?per_page=20");
+    const data = await chainResp.json();
+    const chain = data.chain || [];
+
+    if (loading) loading.style.display = "none";
+
+    if (chain.length === 0) {
+      list.innerHTML = '<div class="tx-empty"><div class="icon">⛓️</div><div>No blocks yet</div></div>';
+      return;
+    }
+
+    const reversed = [...chain].reverse();
+    list.innerHTML = reversed
+      .map((block) => {
+        const isGenesis = block.index === 0;
+        const txCount = (block.transactions || []).length;
+        const hash = block.hash || "";
+        const prevHash = block.previous_hash || "";
+        return `
+          <div class="block-item ${isGenesis ? "genesis" : ""}">
+            <div class="block-header">
+              <span class="block-index">#${block.index} ${isGenesis ? '<span class="block-genesis-label">Genesis</span>' : ""}</span>
+              <span class="block-timestamp">${new Date(block.timestamp).toLocaleString()}</span>
+            </div>
+            <div class="block-tx-count">${txCount} transaction${txCount !== 1 ? "s" : ""}${!isGenesis ? ` · Nonce: ${block.nonce}` : ""}</div>
+            <div class="block-hash">Hash: ${hash.substring(0, 32)}…</div>
+            ${!isGenesis ? `<div class="block-hash" style="margin-top:2px;">Prev: ${prevHash.substring(0, 32)}…</div>` : ""}
+            ${txCount > 0 ? `<div style="margin-top:6px;"><a class="tx-proof-link" data-block="${block.index}">View transactions →</a></div>` : ""}
+          </div>`;
+      })
+      .join("");
+
+    // Click proof link to show txs in block
+    list.querySelectorAll(".tx-proof-link").forEach((link) => {
+      link.onclick = async (e) => {
+        e.stopPropagation();
+        const blockIdx = link.dataset.block;
+        const blockResp = await fetch(`/api/ledger/block/${blockIdx}`);
+        const blockData = await blockResp.json();
+        const block = blockData.block;
+        if (!block || !block.transactions || block.transactions.length === 0) {
+          showToast("No transactions in block", "info");
+          return;
+        }
+        showToast(`Block #${blockIdx}: ${block.transactions.length} transactions recorded on-chain`, "success");
+      };
+    });
+  } catch (e) {
+    console.error("Ledger refresh failed:", e);
+    if (loading) loading.style.display = "none";
+    list.innerHTML = '<div class="tx-empty"><div class="icon">⚠️</div><div>Failed to load ledger</div><div style="font-size:12px;color:var(--text3)">Check connection</div></div>';
+  }
+}
+
+async function mineBlock() {
+  const btn = $("ledger-mine-btn");
+  setLoading(btn, true);
+  try {
+    const resp = await fetch("/api/ledger/mine", { method: "POST" });
+    const data = await resp.json();
+    if (resp.ok) {
+      showToast(data.message || "Block mined!", "success");
+    } else {
+      showToast(data.error || "Failed to mine", "error");
+    }
+    refreshLedger();
+  } catch {
+    showToast("Failed to mine block", "error");
+  } finally {
+    setLoading(btn, false);
+  }
+}
+
+// ── Auth ──
 async function handleAuth(email, password) {
   try {
     if (!authFns) return;
@@ -158,7 +326,7 @@ async function handleRegister() {
   }
 }
 
-// Live recipient lookup on input
+// ── Send / Recipient Lookup ──
 let lookupTimeout = null;
 $("send-recipient").oninput = () => {
   clearTimeout(lookupTimeout);
@@ -206,7 +374,6 @@ async function handleSend() {
     $("confirm-dialog").classList.add("active");
     $("confirm-pin").focus();
 
-    // Enable submit when PIN is entered
     $("confirm-pin").oninput = () => {
       const pin = $("confirm-pin").value;
       $("confirm-submit").disabled = pin.length < 4;
@@ -267,7 +434,7 @@ async function handleSend() {
   }
 }
 
-// QR Code
+// ── QR Code ──
 async function renderQR() {
   const canvas = $("qr-canvas");
   const user = getCurrentUser();
@@ -289,7 +456,6 @@ async function renderQR() {
     };
     img.src = URL.createObjectURL(blob);
   } catch {
-    // Fallback: draw simple placeholder
     canvas.width = 240;
     canvas.height = 240;
     const ctx = canvas.getContext("2d");
@@ -303,15 +469,20 @@ async function renderQR() {
   }
 }
 
-// Init
+// ── Init ──
 async function init() {
   const result = await initAuth(app);
   auth = result.auth;
   authFns = result;
 
+  $("dashboard-user-name").textContent = result.user?.displayName
+    ? `Welcome, ${result.user.displayName}`
+    : "Welcome";
+
   if (result.user) {
     if (result.registered) {
-      showScreen("dashboard");
+      screenStack = ["dashboard"];
+      showScreen("dashboard", false);
       renderQR();
     } else {
       showScreen("register");
@@ -321,7 +492,7 @@ async function init() {
   }
 }
 
-// Event bindings
+// ── Event Bindings ──
 document.addEventListener("DOMContentLoaded", () => {
   init();
 
@@ -357,6 +528,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (authFns) {
       await authFns.signOut(auth);
       stopPolling();
+      screenStack = [];
       showScreen("auth");
     }
   };
@@ -370,8 +542,12 @@ document.addEventListener("DOMContentLoaded", () => {
     renderQR();
     showScreen("receive");
   };
-  $("send-back").onclick = () => { showScreen("dashboard"); };
-  $("receive-back").onclick = () => showScreen("dashboard");
+  $("action-ledger").onclick = () => {
+    showScreen("ledger");
+  };
+  $("send-back").onclick = goBack;
+  $("receive-back").onclick = goBack;
+  $("ledger-back").onclick = goBack;
 
   $("send-submit").onclick = handleSend;
   $("send-amount").onkeydown = (e) => { if (e.key === "Enter") handleSend(); };
@@ -384,4 +560,6 @@ document.addEventListener("DOMContentLoaded", () => {
       showToast("Could not copy", "error");
     }
   };
+
+  $("ledger-mine-btn").onclick = mineBlock;
 });

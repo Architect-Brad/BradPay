@@ -5,6 +5,8 @@ from config import Config
 from data import init_db
 from routes.auth_routes import auth_bp
 from routes.transaction_routes import tx_bp
+from routes.ledger_routes import ledger_bp
+from ledger import init_ledger
 
 
 def create_app():
@@ -14,6 +16,7 @@ def create_app():
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(tx_bp)
+    app.register_blueprint(ledger_bp)
 
     frontend_path = os.path.dirname(os.path.dirname(__file__))
 
@@ -27,6 +30,7 @@ def create_app():
 
     with app.app_context():
         init_db()
+        init_ledger()
 
     return app
 
