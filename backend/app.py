@@ -2,7 +2,7 @@ from flask import Flask, send_from_directory
 from flask_cors import CORS
 import os
 from config import Config
-from data import init_db
+from data import init_db, get_active_tariffs, create_tariff
 from routes.auth_routes import auth_bp
 from routes.transaction_routes import tx_bp
 from routes.ledger_routes import ledger_bp
@@ -44,6 +44,12 @@ def create_app():
     with app.app_context():
         init_db()
         init_ledger()
+        if not get_active_tariffs():
+            create_tariff("P2P Transfer", "transfer", percentage=0, flat_fee=0)
+            create_tariff("Agent Commission", "agent_commission", percentage=100)
+            create_tariff("M-PESA Deposit", "deposit", percentage=0, flat_fee=0)
+            create_tariff("M-PESA Withdrawal (< 1000 KES)", "withdrawal", percentage=0, flat_fee=3000)
+            create_tariff("M-PESA Withdrawal (>= 1000 KES)", "withdrawal", percentage=100, min_amount=100000)
 
     return app
 
