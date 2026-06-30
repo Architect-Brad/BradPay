@@ -516,6 +516,12 @@ async function init() {
     ? `Welcome, ${result.user.displayName}`
     : "Welcome";
 
+  // Don't override if user already navigated away from initial screen
+  const activeId = document.querySelector(".screen.active")?.id;
+  if (activeId && activeId !== "auth-screen" && activeId !== "register-screen") {
+    return;
+  }
+
   if (result.user) {
     if (result.registered) {
       screenStack = ["dashboard"];
