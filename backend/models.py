@@ -108,6 +108,49 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_mpesa_checkout ON mpesa_transactions(checkout_id);
         CREATE INDEX IF NOT EXISTS idx_mpesa_conversation ON mpesa_transactions(conversation_id);
         CREATE INDEX IF NOT EXISTS idx_mpesa_user ON mpesa_transactions(user_uid);
+
+        CREATE TABLE IF NOT EXISTS agents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            firebase_uid TEXT UNIQUE NOT NULL,
+            business_name TEXT NOT NULL,
+            contact_phone TEXT,
+            email TEXT,
+            id_number TEXT,
+            kra_pin TEXT,
+            location TEXT,
+            status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','active','suspended','rejected')),
+            float_balance INTEGER NOT NULL DEFAULT 0,
+            commission_rate INTEGER NOT NULL DEFAULT 100,
+            total_commission_earned INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            verified_at TEXT,
+            FOREIGN KEY (firebase_uid) REFERENCES users(firebase_uid)
+        );
+
+        CREATE TABLE IF NOT EXISTS agent_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_uid TEXT NOT NULL,
+            type TEXT NOT NULL CHECK(type IN ('float_topup','float_withdrawal','commission','cash_in','cash_out')),
+            amount INTEGER NOT NULL,
+            user_uid TEXT,
+            commission INTEGER DEFAULT 0,
+            reference TEXT,
+            status TEXT NOT NULL DEFAULT 'completed',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (agent_uid) REFERENCES agents(firebase_uid)
+        );
+
+        CREATE TABLE IF NOT EXISTS tariffs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            type TEXT NOT NULL CHECK(type IN ('transfer','deposit','withdrawal','agent_commission','float_topup')),
+            percentage INTEGER,
+            flat_fee INTEGER,
+            min_amount INTEGER,
+            max_amount INTEGER,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
     """)
     try:
         conn.execute("ALTER TABLE users ADD COLUMN kes_balance INTEGER NOT NULL DEFAULT 0")
@@ -544,3 +587,144 @@ def get_kes_balance(user_uid):
     ).fetchone()
     conn.close()
     return user["kes_balance"] if user else None
+
+
+# ── Agent functions ──
+
+def create_agent(firebase_uid, business_name, contact_phone=None, email=None, id_number=None, kra_pin=None, location=None):
+    conn = get_db()
+    try:
+        cur = conn.execute(
+            """INSERT INTO agents (firebase_uid, business_name, contact_phone, email, id_number, kra_pin, location)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (firebase_uid, business_name, contact_phone, email, id_number, kra_pin, location),
+        )
+        conn.commit()
+        agent = conn.execute("SELECT * FROM agents WHERE id = ?", (cur.lastrowid,)).fetchone()
+        return dict(agent)
+    except Exception as e:
+        conn.close()
+        return {"error": str(e)}
+    finally:
+        conn.close()
+
+
+def get_agent(firebase_uid):
+    conn = get_db()
+    agent = conn.execute(
+        "SELECT * FROM agents WHERE firebase_uid = ?", (firebase_uid,)
+    ).fetchone()
+    conn.close()
+    return dict(agent) if agent else None
+
+
+def get_agent_by_id(agent_id):
+    conn = get_db()
+    agent = conn.execute(
+        "SELECT * FROM agents WHERE id = ?", (agent_id,)
+    ).fetchone()
+    conn.close()
+    return dict(agent) if agent else None
+
+
+def update_agent_status(firebase_uid, status):
+    conn = get_db()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    verified = f", verified_at = '{now}'" if status == "active" else ""
+    conn.execute(
+        f"UPDATE agents SET status = ?{verified} WHERE firebase_uid = ?",
+        (status, firebase_uid),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_agent_float(agent_uid, amount_delta):
+    conn = get_db()
+    conn.execute(
+        """UPDATE agents SET float_balance = MAX(COALESCE(float_balance, 0) + ?, 0)
+           WHERE firebase_uid = ?""",
+        (amount_delta, agent_uid),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_all_agents(status=None):
+    conn = get_db()
+    if status:
+        rows = conn.execute("SELECT * FROM agents WHERE status = ? ORDER BY created_at DESC", (status,)).fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM agents ORDER BY created_at DESC").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def create_agent_transaction(agent_uid, type_, amount, user_uid=None, commission=0, reference=None):
+    conn = get_db()
+    cur = conn.execute(
+        """INSERT INTO agent_transactions (agent_uid, type, amount, user_uid, commission, reference)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (agent_uid, type_, amount, user_uid, commission, reference),
+    )
+    conn.commit()
+    tx = conn.execute("SELECT * FROM agent_transactions WHERE id = ?", (cur.lastrowid,)).fetchone()
+    conn.close()
+    return dict(tx)
+
+
+def get_agent_transactions(agent_uid, limit=50):
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM agent_transactions WHERE agent_uid = ? ORDER BY created_at DESC LIMIT ?",
+        (agent_uid, limit),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ── Tariff functions ──
+
+def create_tariff(name, type_, percentage=None, flat_fee=None, min_amount=None, max_amount=None):
+    conn = get_db()
+    cur = conn.execute(
+        """INSERT INTO tariffs (name, type, percentage, flat_fee, min_amount, max_amount)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (name, type_, percentage, flat_fee, min_amount, max_amount),
+    )
+    conn.commit()
+    t = conn.execute("SELECT * FROM tariffs WHERE id = ?", (cur.lastrowid,)).fetchone()
+    conn.close()
+    return dict(t)
+
+
+def get_active_tariffs():
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM tariffs WHERE is_active = 1 ORDER BY type, name").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_tariff_by_type(type_):
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM tariffs WHERE type = ? AND is_active = 1 ORDER BY min_amount ASC",
+        (type_,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def update_tariff(tariff_id, **kwargs):
+    conn = get_db()
+    fields = {k: v for k, v in kwargs.items() if v is not None}
+    if not fields:
+        conn.close()
+        return None
+    sets = ", ".join(f"{k} = ?" for k in fields)
+    vals = list(fields.values()) + [tariff_id]
+    conn.execute(f"UPDATE tariffs SET {sets} WHERE id = ?", vals)
+    conn.commit()
+    t = conn.execute("SELECT * FROM tariffs WHERE id = ?", (tariff_id,)).fetchone()
+    conn.close()
+    return dict(t)

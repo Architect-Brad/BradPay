@@ -9,6 +9,8 @@ from routes.ledger_routes import ledger_bp
 from routes.trade_routes import trade_bp
 from routes.daraja_routes import daraja_bp
 from routes.ussd_routes import ussd_bp
+from routes.agent_routes import agent_bp
+from routes.tariff_routes import tariff_bp
 from ledger import init_ledger
 
 
@@ -26,6 +28,8 @@ def create_app():
     app.register_blueprint(trade_bp)
     app.register_blueprint(daraja_bp)
     app.register_blueprint(ussd_bp)
+    app.register_blueprint(agent_bp)
+    app.register_blueprint(tariff_bp)
 
     frontend_path = os.path.dirname(os.path.dirname(__file__))
 

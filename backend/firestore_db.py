@@ -514,3 +514,138 @@ def get_kes_balance(user_uid):
     if user:
         return user.get("kes_balance", 0)
     return None
+
+
+# ── Agent functions ──
+
+def _agents_collection():
+    db = get_firestore()
+    return db.collection("agents")
+
+
+def create_agent(firebase_uid, business_name, contact_phone=None, email=None, id_number=None, kra_pin=None, location=None):
+    now = datetime.now(timezone.utc).isoformat()
+    data = {
+        "firebase_uid": firebase_uid,
+        "business_name": business_name,
+        "contact_phone": contact_phone,
+        "email": email,
+        "id_number": id_number,
+        "kra_pin": kra_pin,
+        "location": location,
+        "status": "pending",
+        "float_balance": 0,
+        "commission_rate": 100,
+        "total_commission_earned": 0,
+        "created_at": now,
+        "verified_at": None,
+    }
+    _agents_collection().document(firebase_uid).set(data)
+    return data
+
+
+def get_agent(firebase_uid):
+    doc = _agents_collection().document(firebase_uid).get()
+    return doc.to_dict() if doc.exists else None
+
+
+def get_agent_by_id(agent_id):
+    return get_agent(agent_id)
+
+
+def update_agent_status(firebase_uid, status):
+    now = datetime.now(timezone.utc).isoformat()
+    update = {"status": status}
+    if status == "active":
+        update["verified_at"] = now
+    _agents_collection().document(firebase_uid).update(update)
+
+
+def update_agent_float(agent_uid, amount_delta):
+    agent = get_agent(agent_uid)
+    if not agent:
+        return
+    new_float = max(0, agent.get("float_balance", 0) + amount_delta)
+    _agents_collection().document(agent_uid).update({"float_balance": new_float})
+
+
+def get_all_agents(status=None):
+    coll = _agents_collection()
+    if status:
+        docs = coll.where("status", "==", status).order_by("created_at", direction="DESCENDING").stream()
+    else:
+        docs = coll.order_by("created_at", direction="DESCENDING").stream()
+    return [d.to_dict() for d in docs]
+
+
+def create_agent_transaction(agent_uid, type_, amount, user_uid=None, commission=0, reference=None):
+    now = datetime.now(timezone.utc).isoformat()
+    data = {
+        "agent_uid": agent_uid,
+        "type": type_,
+        "amount": amount,
+        "user_uid": user_uid,
+        "commission": commission,
+        "reference": reference,
+        "status": "completed",
+        "created_at": now,
+    }
+    _agents_collection().document(agent_uid).collection("transactions").add(data)
+    return data
+
+
+def get_agent_transactions(agent_uid, limit=50):
+    docs = (
+        _agents_collection()
+        .document(agent_uid)
+        .collection("transactions")
+        .order_by("created_at", direction="DESCENDING")
+        .limit(limit)
+        .stream()
+    )
+    return [d.to_dict() for d in docs]
+
+
+# ── Tariff functions ──
+
+def _tariffs_collection():
+    db = get_firestore()
+    return db.collection("tariffs")
+
+
+def create_tariff(name, type_, percentage=None, flat_fee=None, min_amount=None, max_amount=None):
+    now = datetime.now(timezone.utc).isoformat()
+    data = {
+        "name": name,
+        "type": type_,
+        "percentage": percentage,
+        "flat_fee": flat_fee,
+        "min_amount": min_amount,
+        "max_amount": max_amount,
+        "is_active": True,
+        "created_at": now,
+    }
+    _, ref = _tariffs_collection().add(data)
+    data["id"] = ref.id
+    return data
+
+
+def get_active_tariffs():
+    docs = _tariffs_collection().where("is_active", "==", True).stream()
+    return [d.to_dict() for d in docs]
+
+
+def get_tariff_by_type(type_):
+    docs = (
+        _tariffs_collection()
+        .where("is_active", "==", True)
+        .where("type", "==", type_)
+        .stream()
+    )
+    return [d.to_dict() for d in docs]
+
+
+def update_tariff(tariff_id, **kwargs):
+    _tariffs_collection().document(tariff_id).update(kwargs)
+    doc = _tariffs_collection().document(tariff_id).get()
+    return doc.to_dict() if doc.exists else None
