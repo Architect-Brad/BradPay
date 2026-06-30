@@ -45,7 +45,7 @@ def stkpush():
     if checkout_id:
         create_mpesa_transaction(
             user_uid=user_uid,
-            type="deposit",
+            type_="deposit",
             phone=phone,
             amount=amount,
             checkout_id=checkout_id,

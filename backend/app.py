@@ -31,11 +31,15 @@ def create_app():
     app.register_blueprint(agent_bp)
     app.register_blueprint(tariff_bp)
 
-    frontend_path = os.path.dirname(os.path.dirname(__file__))
+    frontend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
 
     @app.route("/")
     def index():
-        return send_from_directory(frontend_path, "index.html")
+        return send_from_directory(frontend_path, "frontend/landing.html")
+
+    @app.route("/app")
+    def app_spa():
+        return send_from_directory(frontend_path, "frontend/index.html")
 
     @app.route("/<path:path>")
     def static_files(path):
