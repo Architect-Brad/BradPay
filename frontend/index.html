@@ -23,6 +23,11 @@
         <input type="email" id="auth-email" placeholder="Email" autocomplete="email" />
         <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password" />
         <button class="btn btn-primary btn-full" id="auth-submit">Sign In</button>
+        <div class="auth-divider">or</div>
+        <button class="btn btn-google btn-full" id="auth-google-btn">
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" />
+          Sign in with Google
+        </button>
       </div>
       <div class="auth-switch">
         Don't have an account? <a id="auth-toggle">Create one</a>
@@ -45,6 +50,11 @@
         <input type="password" id="reg-pin" placeholder="4-6 digit PIN" maxlength="6" inputmode="numeric" pattern="[0-9]*" />
         <input type="password" id="reg-pin-confirm" placeholder="Confirm PIN" maxlength="6" inputmode="numeric" pattern="[0-9]*" />
         <button class="btn btn-primary btn-full" id="register-submit">Create Wallet</button>
+        <div class="auth-divider">or</div>
+        <button class="btn btn-google btn-full" id="register-google-btn">
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" />
+          Sign up with Google
+        </button>
       </div>
       <div class="auth-switch">
         Already have an account? <a id="register-toggle">Sign in</a>

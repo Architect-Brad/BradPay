@@ -58,6 +58,18 @@ label { font-size: 14px; font-weight: 500; color: var(--text2); margin-bottom: -
 .btn-primary:active { transform: scale(0.98); }
 .btn-secondary { background: var(--bg3); color: var(--text); }
 .btn-secondary:hover { background: #475569; }
+.btn-google {
+  background: white; color: #1f2937; border: 1px solid #d1d5db;
+  font-weight: 500; width: 100%;
+}
+.btn-google:hover { background: #f9fafb; }
+.btn-google img { width: 18px; height: 18px; }
+.auth-divider {
+  display: flex; align-items: center; gap: 12px; color: var(--text3); font-size: 12px; width: 100%;
+}
+.auth-divider::before, .auth-divider::after {
+  content: ""; flex: 1; height: 1px; background: var(--bg3);
+}
 .btn-danger { background: var(--danger); color: white; }
 .btn-success { background: var(--success); color: white; }
 .btn-ghost { background: transparent; color: var(--text2); padding: 8px 12px; font-size: 14px; }

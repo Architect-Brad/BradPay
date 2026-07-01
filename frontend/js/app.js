@@ -1,5 +1,5 @@
 import { firebaseConfig } from "./firebase-config.js";
-import { initAuth, registerUser, getIdToken, getCurrentUser } from "./auth.js";
+import { initAuth, registerUser, getIdToken, getCurrentUser, onAuthChange } from "./auth.js";
 import { getBalance, sendMoney, getHistory, lookupUser, formatAmount, formatDate } from "./wallet.js";
 import { initTrade, refreshTradeScreen } from "./trade.js";
 import { initDaraja, refreshDaraja } from "./daraja.js";
@@ -322,25 +322,29 @@ async function handleRegister() {
   const phone = $("reg-phone").value.trim();
   const pin = $("reg-pin").value;
   const pinConfirm = $("reg-pin-confirm").value;
+  const isGoogleAuth = $("reg-password").style.display === "none";
 
   if (!email) { showToast("Email is required", "error"); return; }
-  if (!password || password.length < 6) { showToast("Password must be at least 6 characters", "error"); return; }
+  if (!isGoogleAuth && (!password || password.length < 6)) { showToast("Password must be at least 6 characters", "error"); return; }
   if (!name) { showToast("Name is required", "error"); return; }
   if (pin !== pinConfirm) { showToast("PINs don't match", "error"); return; }
   if (pin.length < 4) { showToast("PIN must be at least 4 digits", "error"); return; }
 
   setLoading($("register-submit"), true);
-  try {
-    const { createUserWithEmailAndPassword } = authFns;
-    await createUserWithEmailAndPassword(auth, email, password);
-  } catch (e) {
-    const msg = e.code === "auth/email-already-in-use" ? "Email already in use" :
-                e.code === "auth/weak-password" ? "Password too weak (min 6 chars)" :
-                e.message || "Account creation failed";
-    $("register-error").textContent = msg;
-    $("register-error").style.display = "block";
-    setLoading($("register-submit"), false);
-    return;
+
+  if (!isGoogleAuth) {
+    try {
+      const { createUserWithEmailAndPassword } = authFns;
+      await createUserWithEmailAndPassword(auth, email, password);
+    } catch (e) {
+      const msg = e.code === "auth/email-already-in-use" ? "Email already in use" :
+                  e.code === "auth/weak-password" ? "Password too weak (min 6 chars)" :
+                  e.message || "Account creation failed";
+      $("register-error").textContent = msg;
+      $("register-error").style.display = "block";
+      setLoading($("register-submit"), false);
+      return;
+    }
   }
 
   // Auth state change will fire and init() will call checkRegistration()
@@ -360,7 +364,7 @@ async function handleRegister() {
     } finally {
       setLoading($("register-submit"), false);
     }
-  }, 500);
+  }, isGoogleAuth ? 200 : 500);
 }
 
 // ── Send / Recipient Lookup ──
@@ -508,33 +512,42 @@ async function renderQR() {
 
 // ── Init ──
 async function init() {
-  const result = await initAuth(app);
-  auth = result.auth;
-  authFns = result;
+  const fns = await initAuth(app);
+  auth = fns.auth;
+  authFns = fns;
 
-  $("dashboard-user-name").textContent = result.user?.displayName
-    ? `Welcome, ${result.user.displayName}`
-    : "Welcome";
+  onAuthChange(({ user, registered }) => {
+    $("dashboard-user-name").textContent = user?.displayName
+      ? `Welcome, ${user.displayName}`
+      : "Welcome";
 
-  // Don't override if user already navigated away from initial screen
-  const activeId = document.querySelector(".screen.active")?.id;
-  if (activeId && activeId !== "auth-screen" && activeId !== "register-screen") {
-    return;
-  }
-
-  if (result.user) {
-    if (result.registered) {
-      screenStack = ["dashboard"];
-      showScreen("dashboard", false);
-      renderQR();
-      initTrade();
-      initDaraja();
-    } else {
-      showScreen("register");
+    const activeId = document.querySelector(".screen.active")?.id;
+    if (activeId && activeId !== "auth-screen" && activeId !== "register-screen" && activeId !== "dashboard-screen") {
+      return;
     }
-  } else {
-    showScreen("auth");
-  }
+
+    if (user) {
+      if (registered) {
+        screenStack = ["dashboard"];
+        showScreen("dashboard", false);
+        renderQR();
+        initTrade();
+        initDaraja();
+        startPolling();
+      } else {
+        showScreen("register");
+        if (user.email && !$("reg-email").value) {
+          $("reg-email").value = user.email;
+          $("reg-name").value = user.displayName || "";
+          $("reg-password").style.display = "none";
+          $("reg-password").removeAttribute("required");
+        }
+      }
+    } else {
+      stopPolling();
+      showScreen("auth");
+    }
+  });
 }
 
 // ── Event Bindings ──
@@ -568,6 +581,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("register-submit").onclick = () => handleRegister();
   $("reg-password").onkeydown = (e) => { if (e.key === "Enter") $("register-submit").click(); };
+
+  // Google OAuth
+  async function handleGoogleSignIn(buttonId) {
+    setLoading($(buttonId), true);
+    try {
+      const provider = new authFns.GoogleAuthProvider();
+      await authFns.signInWithPopup(auth, provider);
+    } catch (e) {
+      if (e.code !== "auth/popup-closed-by-user") {
+        showToast(e.message || "Google sign-in failed", "error");
+      }
+    } finally {
+      setLoading($(buttonId), false);
+    }
+  }
+  $("auth-google-btn").onclick = () => handleGoogleSignIn("auth-google-btn");
+  $("register-google-btn").onclick = () => handleGoogleSignIn("register-google-btn");
 
   $("logout-btn").onclick = async () => {
     if (authFns) {

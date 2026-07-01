@@ -2,6 +2,8 @@ import { API_BASE } from "./firebase-config.js";
 
 let currentUser = null;
 let idToken = null;
+let _onChange = null;
+let _pending = null;
 
 export function getCurrentUser() {
   return currentUser;
@@ -11,24 +13,41 @@ export function getIdToken() {
   return idToken;
 }
 
+export function onAuthChange(cb) {
+  _onChange = cb;
+  if (_pending) {
+    const p = _pending;
+    _pending = null;
+    cb(p);
+  }
+}
+
+async function handleUser(user) {
+  let data;
+  if (user) {
+    idToken = await user.getIdToken();
+    currentUser = { uid: user.uid, email: user.email, displayName: user.displayName };
+    const registered = await checkRegistration();
+    data = { user: currentUser, registered };
+  } else {
+    currentUser = null;
+    idToken = null;
+    data = { user: null, registered: false };
+  }
+  if (_onChange) {
+    _onChange(data);
+  } else {
+    _pending = data;
+  }
+}
+
 export async function initAuth(app) {
-  const { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } = await import("firebase/auth");
+  const { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } = await import("firebase/auth");
   const auth = getAuth(app);
 
-  return new Promise((resolve) => {
-    onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        idToken = await user.getIdToken();
-        currentUser = { uid: user.uid, email: user.email, displayName: user.displayName };
-        const registered = await checkRegistration();
-        resolve({ user: currentUser, registered, auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut });
-      } else {
-        currentUser = null;
-        idToken = null;
-        resolve({ user: null, registered: false, auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut });
-      }
-    });
-  });
+  onAuthStateChanged(auth, handleUser);
+
+  return { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup };
 }
 
 async function checkRegistration() {
