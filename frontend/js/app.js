@@ -3,6 +3,7 @@ import { initAuth, registerUser, getIdToken, getCurrentUser, onAuthChange } from
 import { getBalance, sendMoney, getHistory, lookupUser, formatAmount, formatDate } from "./wallet.js";
 import { initTrade, refreshTradeScreen } from "./trade.js";
 import { initDaraja, refreshDaraja } from "./daraja.js";
+import { initNetworkListener, getQueueLength, flushQueue, clearQueue } from "./sync.js";
 
 const { initializeApp } = await import("firebase/app");
 const app = initializeApp(firebaseConfig);
@@ -515,6 +516,20 @@ async function init() {
   const fns = await initAuth(app);
   auth = fns.auth;
   authFns = fns;
+
+  initNetworkListener((online) => {
+    const banner = document.getElementById("offline-banner");
+    if (banner) {
+      banner.style.display = online ? "none" : "flex";
+      document.body.classList.toggle("bradpay-offline", !online);
+    }
+  });
+
+  window.addEventListener("queue-flushed", (e) => {
+    const n = e.detail;
+    showToast(`${n} transaction(s) synced`, "success");
+    refreshDashboard();
+  });
 
   onAuthChange(({ user, registered }) => {
     $("dashboard-user-name").textContent = user?.displayName

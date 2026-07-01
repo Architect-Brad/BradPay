@@ -367,3 +367,13 @@ label { font-size: 14px; font-weight: 500; color: var(--text2); margin-bottom: -
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
+
+/* Offline Banner */
+#offline-banner {
+  display: none; align-items: center; justify-content: center; gap: 8px;
+  background: var(--warning); color: #000; font-size: 13px; font-weight: 600;
+  padding: 6px 16px; text-align: center; position: fixed; top: 0; left: 0; right: 0;
+  z-index: 999;
+}
+#offline-banner::before { content: "📡"; }
+body.bradpay-offline #app { padding-top: 34px; }
