@@ -3,6 +3,7 @@ import os
 if os.environ.get("FIREBASE_SERVICE_ACCOUNT"):
     from firestore_db import (
         init_db,
+        init_bradsec,
         create_user,
         get_user_by_firebase_uid,
         get_user_by_id,
@@ -37,6 +38,17 @@ if os.environ.get("FIREBASE_SERVICE_ACCOUNT"):
         get_active_tariffs,
         get_tariff_by_type,
         update_tariff,
+        log_event,
+        get_events,
+        count_events,
+        check_rate_limit,
+        get_rate_limit_remaining,
+        reset_rate_limit,
+        evaluate_transaction,
+        get_flagged_transactions,
+        resolve_flag,
+        get_flag_stats,
+        get_security_summary,
     )
 else:
     from models import (
@@ -75,4 +87,20 @@ else:
         get_active_tariffs,
         get_tariff_by_type,
         update_tariff,
+    )
+
+    from models import init_bradsec
+
+    from bradsec import (
+        log_event,
+        get_events,
+        count_events,
+        check_rate_limit,
+        get_rate_limit_remaining,
+        reset_rate_limit,
+        evaluate_transaction,
+        get_flagged_transactions,
+        resolve_flag,
+        get_flag_stats,
+        get_security_summary,
     )

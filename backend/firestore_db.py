@@ -1,5 +1,6 @@
 import os
 import json
+import time
 from datetime import datetime, timezone
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -48,6 +49,10 @@ def _desc():
 
 
 def init_db():
+    pass
+
+
+def init_bradsec():
     pass
 
 
@@ -649,3 +654,270 @@ def update_tariff(tariff_id, **kwargs):
     _tariffs_collection().document(tariff_id).update(kwargs)
     doc = _tariffs_collection().document(tariff_id).get()
     return doc.to_dict() if doc.exists else None
+
+
+# ── BradSec ──
+
+def _sec_events_collection():
+    return get_firestore().collection("security_events")
+
+
+def _flagged_tx_collection():
+    return get_firestore().collection("flagged_transactions")
+
+
+def _rate_limit_collection():
+    return get_firestore().collection("rate_limits")
+
+
+def log_event(event_type, severity="info", uid=None, details=None, ip_address=None, user_agent=None):
+    allowed_types = (
+        "login_success", "login_failure", "registration", "logout",
+        "send", "receive", "deposit", "withdrawal",
+        "admin_credit", "admin_debit",
+        "agent_cash_in", "agent_cash_out", "float_topup", "float_transfer",
+        "rate_limit_hit", "fraud_flag", "fraud_resolve",
+        "pin_change", "pin_failure",
+        "suspicious_ip", "suspicious_device",
+    )
+    allowed_sevs = ("info", "low", "medium", "high", "critical")
+    if event_type not in allowed_types:
+        event_type = "suspicious_ip"
+    if severity not in allowed_sevs:
+        severity = "info"
+    now = datetime.now(timezone.utc).isoformat()
+    _sec_events_collection().add({
+        "event_type": event_type,
+        "severity": severity,
+        "uid": uid,
+        "details": json.dumps(details) if details else None,
+        "ip_address": ip_address,
+        "user_agent": user_agent,
+        "created_at": now,
+    })
+
+
+def get_events(limit=50, offset=0, event_type=None, severity=None, uid=None):
+    col = _sec_events_collection()
+    docs = col.order_by("created_at", direction=_desc()).limit(limit + offset).stream()
+    results = []
+    for d in docs:
+        data = d.to_dict()
+        if uid and data.get("uid") != uid:
+            continue
+        if event_type and data.get("event_type") != event_type:
+            continue
+        if severity and data.get("severity") != severity:
+            continue
+        results.append({"id": d.id, **data})
+    return results[offset:offset + limit]
+
+
+def count_events(event_type=None, severity=None, uid=None):
+    docs = _sec_events_collection().stream()
+    count = 0
+    for d in docs:
+        data = d.to_dict()
+        if uid and data.get("uid") != uid:
+            continue
+        if event_type and data.get("event_type") != event_type:
+            continue
+        if severity and data.get("severity") != severity:
+            continue
+        count += 1
+    return count
+
+
+def check_rate_limit(uid, action, max_count=10, window_seconds=60):
+    from bradsec import RATE_LIMITS
+    cfg = RATE_LIMITS.get(action)
+    if not cfg:
+        return True
+    doc_ref = _rate_limit_collection().document(f"{uid}:{action}")
+    doc = doc_ref.get()
+    now = time.time()
+    window_start = now - (now % cfg["window"])
+
+    if doc.exists:
+        data = doc.to_dict()
+        if data.get("window_start") == window_start:
+            if data["count"] >= cfg["max"]:
+                return False
+            doc_ref.update({"count": _inc(1)})
+        else:
+            doc_ref.set({"uid": uid, "action": action, "window_start": window_start, "count": 1})
+    else:
+        doc_ref.set({"uid": uid, "action": action, "window_start": window_start, "count": 1})
+    return True
+
+
+def get_rate_limit_remaining(uid, action, max_count=10, window_seconds=60):
+    from bradsec import RATE_LIMITS
+    cfg = RATE_LIMITS.get(action)
+    if not cfg:
+        return -1
+    doc = _rate_limit_collection().document(f"{uid}:{action}").get()
+    data = doc.to_dict() if doc.exists else {}
+    used = data.get("count", 0)
+    return max(0, cfg["max"] - used)
+
+
+def reset_rate_limit(uid, action):
+    _rate_limit_collection().document(f"{uid}:{action}").delete()
+
+
+def evaluate_transaction(sender_uid, recipient_uid, amount, tx_ref=None):
+    from bradsec import FRAUD_RULES, FLAG_THRESHOLD
+    import time
+    from datetime import timedelta
+
+    triggered = []
+    total_score = 0
+    now = datetime.now(timezone.utc)
+
+    # 1. Velocity
+    since = (now - timedelta(seconds=300)).isoformat()
+    recent = _sec_events_collection().where("uid", "==", sender_uid).where("event_type", "==", "send").where("created_at", ">=", since).stream()
+    if len(list(recent)) >= 5:
+        triggered.append(FRAUD_RULES["velocity"])
+        total_score += FRAUD_RULES["velocity"]["score"]
+
+    # 2. Amount anomaly
+    if amount > 10_000_000:
+        triggered.append(FRAUD_RULES["amount_anomaly"])
+        total_score += FRAUD_RULES["amount_anomaly"]["score"]
+
+    # 3. New account
+    user = get_user_by_firebase_uid(sender_uid)
+    if user and amount > 1_000_000:
+        created = user.get("created_at")
+        if created:
+            try:
+                created_dt = datetime.fromisoformat(created)
+                if now - created_dt < timedelta(hours=24):
+                    triggered.append(FRAUD_RULES["new_account"])
+                    total_score += FRAUD_RULES["new_account"]["score"]
+            except (ValueError, TypeError):
+                pass
+
+    # 4. Rapid same-recipient
+    since_tx = (now - timedelta(seconds=600)).isoformat()
+    recent_tx = list(
+        get_firestore().collection("transactions")
+        .where("sender_uid", "==", sender_uid)
+        .where("recipient_uid", "==", recipient_uid)
+        .where("created_at", ">=", since_tx)
+        .stream()
+    )
+    if len(recent_tx) >= 3:
+        triggered.append(FRAUD_RULES["rapid_recipient"])
+        total_score += FRAUD_RULES["rapid_recipient"]["score"]
+
+    # 5. Balance drain
+    if user:
+        kes = user.get("kes_balance", 0)
+        if kes > 0 and amount > kes * 0.9:
+            triggered.append(FRAUD_RULES["balance_drain"])
+            total_score += FRAUD_RULES["balance_drain"]["score"]
+
+    # 6. Unusual hours
+    hour = now.hour
+    if hour < 5 or hour >= 23:
+        triggered.append(FRAUD_RULES["unusual_hours"])
+        total_score += FRAUD_RULES["unusual_hours"]["score"]
+
+    # 7. Round numbers
+    if amount % 100000 == 0 and amount >= 500000:
+        triggered.append(FRAUD_RULES["round_numbers"])
+        total_score += FRAUD_RULES["round_numbers"]["score"]
+
+    total_score = min(total_score, 100)
+    is_flagged = total_score >= FLAG_THRESHOLD
+
+    if is_flagged:
+        ref = tx_ref or f"FRAUD-{int(time.time())}-{sender_uid[:8]}"
+        _flagged_tx_collection().add({
+            "tx_ref": ref,
+            "sender_uid": sender_uid,
+            "recipient_uid": recipient_uid,
+            "amount": amount,
+            "score": total_score,
+            "rules_triggered": json.dumps([r["label"] for r in triggered]),
+            "status": "open",
+            "created_at": now.isoformat(),
+        })
+        log_event("fraud_flag", "high", sender_uid, {
+            "tx_ref": ref, "amount": amount, "score": total_score,
+            "rules": [r["label"] for r in triggered],
+        })
+
+    return {
+        "score": total_score,
+        "flagged": is_flagged,
+        "threshold": FLAG_THRESHOLD,
+        "rules_triggered": [r["label"] for r in triggered],
+    }
+
+
+def get_flagged_transactions(status=None, limit=50, offset=0):
+    col = _flagged_tx_collection()
+    if status:
+        docs = col.where("status", "==", status).order_by("created_at", direction=_desc()).limit(limit).offset(offset).stream()
+    else:
+        docs = col.order_by("created_at", direction=_desc()).limit(limit).offset(offset).stream()
+    return [{"id": d.id, **d.to_dict()} for d in docs]
+
+
+def resolve_flag(flag_id, status, reviewer_uid, note=None):
+    ref = _flagged_tx_collection().document(flag_id)
+    doc = ref.get()
+    if not doc.exists:
+        return None
+    now = datetime.now(timezone.utc).isoformat()
+    ref.update({
+        "status": status,
+        "reviewed_by": reviewer_uid,
+        "reviewed_at": now,
+        "resolution_note": note or "",
+    })
+    log_event("fraud_resolve", "info", reviewer_uid, {"flag_id": flag_id, "resolution": status})
+    return {"id": flag_id, **doc.to_dict()}
+
+
+def get_flag_stats():
+    col = _flagged_tx_collection()
+    all_flags = list(col.stream())
+    stats = {"open": 0, "approved": 0, "blocked": 0}
+    for d in all_flags:
+        s = d.to_dict().get("status", "open")
+        if s in stats:
+            stats[s] += 1
+    return {**stats, "total": sum(stats.values())}
+
+
+def get_security_summary():
+    from datetime import timedelta
+    since = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    high = list(
+        _sec_events_collection()
+        .where("severity", "in", ["high", "critical"])
+        .where("created_at", ">=", since)
+        .stream()
+    )
+    total_24h = list(
+        _sec_events_collection()
+        .where("created_at", ">=", since)
+        .stream()
+    )
+    recent = list(
+        _sec_events_collection()
+        .order_by("created_at", direction=_desc())
+        .limit(10)
+        .stream()
+    )
+    return {
+        "high_severity_24h": len(high),
+        "total_events_24h": len(total_24h),
+        "open_flags": get_flag_stats()["open"],
+        "recent_events": [{"id": d.id, **d.to_dict()} for d in recent],
+    }

@@ -160,6 +160,55 @@ def init_db():
     conn.close()
 
 
+def init_bradsec():
+    conn = get_db()
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS security_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_type TEXT NOT NULL,
+            severity TEXT NOT NULL DEFAULT 'info',
+            uid TEXT,
+            details TEXT,
+            ip_address TEXT,
+            user_agent TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_sec_events_uid ON security_events(uid);
+        CREATE INDEX IF NOT EXISTS idx_sec_events_type ON security_events(event_type);
+        CREATE INDEX IF NOT EXISTS idx_sec_events_severity ON security_events(severity);
+        CREATE INDEX IF NOT EXISTS idx_sec_events_created ON security_events(created_at);
+
+        CREATE TABLE IF NOT EXISTS flagged_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tx_ref TEXT NOT NULL,
+            sender_uid TEXT,
+            recipient_uid TEXT,
+            amount INTEGER NOT NULL,
+            score INTEGER NOT NULL DEFAULT 0,
+            rules_triggered TEXT,
+            status TEXT NOT NULL DEFAULT 'open',
+            reviewed_by TEXT,
+            reviewed_at TEXT,
+            resolution_note TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_flags_status ON flagged_transactions(status);
+        CREATE INDEX IF NOT EXISTS idx_flags_tx ON flagged_transactions(tx_ref);
+
+        CREATE TABLE IF NOT EXISTS rate_limit_counts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            uid TEXT NOT NULL,
+            action TEXT NOT NULL,
+            window_start REAL NOT NULL,
+            count INTEGER NOT NULL DEFAULT 1,
+            UNIQUE(uid, action, window_start)
+        );
+        CREATE INDEX IF NOT EXISTS idx_rate_limit_lookup ON rate_limit_counts(uid, action, window_start);
+    """)
+    conn.commit()
+    conn.close()
+
+
 def create_user(firebase_uid, email=None, display_name=None, phone=None, pin="1234"):
     conn = get_db()
     try:
