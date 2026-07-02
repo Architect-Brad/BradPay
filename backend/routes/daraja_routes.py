@@ -3,6 +3,7 @@ import logging
 
 from routes.auth_routes import require_auth, require_user
 from daraja import stk_push, b2c, query_status
+from safaricom import require_safaricom_ip
 from data import (
     create_mpesa_transaction,
     get_mpesa_transactions,
@@ -58,6 +59,7 @@ def stkpush():
 
 
 @daraja_bp.route("/callback", methods=["POST"])
+@require_safaricom_ip
 def callback():
     data = request.get_json(silent=True) or {}
     logger.info(f"STK Push callback: {data}")
@@ -145,6 +147,7 @@ def b2c_withdrawal():
 
 
 @daraja_bp.route("/b2c_callback", methods=["POST"])
+@require_safaricom_ip
 def b2c_callback():
     data = request.get_json(silent=True) or {}
     logger.info(f"B2C callback: {data}")
@@ -172,6 +175,7 @@ def b2c_callback():
 
 
 @daraja_bp.route("/b2c_timeout", methods=["POST"])
+@require_safaricom_ip
 def b2c_timeout():
     data = request.get_json(silent=True) or {}
     logger.warning(f"B2C timeout: {data}")

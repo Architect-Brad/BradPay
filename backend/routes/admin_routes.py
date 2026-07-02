@@ -7,7 +7,7 @@ from data import (
 )
 from routes.auth_routes import require_auth, require_user
 from ledger import get_ledger
-from bradsec import log_event, check_rate_limit
+from bradsec import log_event, check_rate_limit, require_rate_limit
 from models import get_db
 
 logger = logging.getLogger(__name__)
@@ -81,6 +81,7 @@ def _record_admin_tx(uid, amount, type_, note):
 
 @admin_bp.route("/credit", methods=["POST"])
 @require_admin
+@require_rate_limit("admin_action")
 def credit():
     data = request.get_json(silent=True) or {}
     uid = data.get("uid")
@@ -121,6 +122,7 @@ def credit():
 
 @admin_bp.route("/debit", methods=["POST"])
 @require_admin
+@require_rate_limit("admin_action")
 def debit():
     data = request.get_json(silent=True) or {}
     uid = data.get("uid")
@@ -164,16 +166,18 @@ def debit():
 
 
 @admin_bp.route("/faucet", methods=["POST"])
-@require_auth
-@require_user
+@require_admin
+@require_rate_limit("admin_action")
 def faucet():
-    test_mode = current_app.config.get("TEST_MODE", False)
-    if not test_mode:
-        return jsonify({"error": "Faucet is only available in test mode"}), 403
-
+    data = request.get_json(silent=True) or {}
+    uid = data.get("uid")
     amount = int(current_app.config.get("FAUCET_AMOUNT", 10000000))
-    uid = g.firebase_uid
-    user = g.current_user
+    if not uid:
+        return jsonify({"error": "uid is required"}), 400
+
+    user = get_user_by_firebase_uid(uid)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
 
     update_kes_balance(uid, amount)
     tx = _record_admin_tx(uid, amount, "deposit", f"Faucet credit — KES {amount / 100:.2f}")

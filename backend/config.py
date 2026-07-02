@@ -13,6 +13,7 @@ class Config:
     ADMIN_API_KEY = os.getenv("ADMIN_API_KEY")
     TEST_MODE = os.getenv("TEST_MODE", "0") == "1"
     FAUCET_AMOUNT = int(os.getenv("FAUCET_AMOUNT", "10000000"))
+    SAFARICOM_IPS = os.getenv("SAFARICOM_IPS", "196.201.214.200/32,196.201.214.206/32,196.201.213.44/32,196.201.215.44/32,196.201.214.224/27")
     FIREBASE_JWKS_URL = (
         f"https://www.googleapis.com/robot/v1/metadata/x509/"
         f"securetoken@system.gserviceaccount.com"

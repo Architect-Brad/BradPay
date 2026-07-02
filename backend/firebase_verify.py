@@ -34,7 +34,8 @@ def _get_firebase_public_keys():
 
 
 def verify_firebase_token(id_token):
-    if os.environ.get("TEST_MODE"):
+    test_mode = os.environ.get("TEST_MODE") and not os.environ.get("VERCEL_ENV")
+    if test_mode:
         return {"valid": True, "uid": id_token, "email": f"{id_token}@test.com", "name": "Test User"}
 
     try:
