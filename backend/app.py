@@ -11,6 +11,9 @@ from routes.daraja_routes import daraja_bp
 from routes.ussd_routes import ussd_bp
 from routes.agent_routes import agent_bp
 from routes.tariff_routes import tariff_bp
+from routes.admin_routes import admin_bp
+from routes.security_routes import security_bp
+from bradsec import init_bradsec
 from ledger import init_ledger
 
 
@@ -30,6 +33,8 @@ def create_app():
     app.register_blueprint(ussd_bp)
     app.register_blueprint(agent_bp)
     app.register_blueprint(tariff_bp)
+    app.register_blueprint(admin_bp)
+    app.register_blueprint(security_bp)
 
     frontend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
 
@@ -48,6 +53,7 @@ def create_app():
     with app.app_context():
         init_db()
         init_ledger()
+        init_bradsec()
         if not get_active_tariffs():
             create_tariff("P2P Transfer", "transfer", percentage=0, flat_fee=0)
             create_tariff("Agent Commission", "agent_commission", percentage=100)

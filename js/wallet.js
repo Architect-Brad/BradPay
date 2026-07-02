@@ -1,17 +1,18 @@
-import { apiGet, apiPost } from "./auth.js";
+import { apiGet, apiPost, getIdToken } from "./auth.js";
+import { queueRequest } from "./sync.js";
 
 export async function getBalance() {
   return apiGet("/transactions/balance");
 }
 
 export async function sendMoney(recipient, amount, note, pin) {
-  return apiPost("/transactions/send", {
-    recipient,
-    amount,
-    note,
-    pin,
-    offlineId: generateOfflineId(),
-  });
+  const body = { recipient, amount, note, pin, offlineId: generateOfflineId() };
+  if (!navigator.onLine) {
+    const token = await getIdToken();
+    queueRequest("/api/transactions/send", "POST", body, { Authorization: `Bearer ${token}` });
+    return { queued: true, offlineId: body.offlineId };
+  }
+  return apiPost("/transactions/send", body);
 }
 
 export async function getHistory(limit = 50) {

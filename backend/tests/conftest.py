@@ -12,6 +12,7 @@ os.environ["MPESA_CONSUMER_KEY"] = "test_key"
 os.environ["MPESA_CONSUMER_SECRET"] = "test_secret"
 os.environ["MPESA_PASSKEY"] = "test_passkey"
 os.environ["MPESA_SHORTCODE"] = "174379"
+os.environ["ADMIN_API_KEY"] = "test-admin-key-123"
 
 from app import create_app
 from models import get_db
@@ -82,6 +83,11 @@ def second_user(client):
 @pytest.fixture
 def second_headers(second_user):
     return _headers(second_user["uid"])
+
+
+@pytest.fixture
+def admin_headers():
+    return {"Authorization": "Bearer test-admin-key-123", "Content-Type": "application/json"}
 
 
 def pytest_unconfigure(config):

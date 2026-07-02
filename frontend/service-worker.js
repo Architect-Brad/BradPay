@@ -1,4 +1,4 @@
-const CACHE = "bradpay-v2";
+const CACHE = "bradpay-v3";
 const ASSETS = [
   "/",
   "/index.html",
@@ -7,6 +7,7 @@ const ASSETS = [
   "/privacy.html",
   "/developers.html",
   "/agent.html",
+  "/admin.html",
   "/css/style.css",
   "/js/firebase-config.js",
   "/js/auth.js",

@@ -109,6 +109,10 @@
           <div class="icon">🔗</div>
           <div class="label">Ledger</div>
         </div>
+        <div class="quick-action" id="action-security">
+          <div class="icon">🛡️</div>
+          <div class="label">Security</div>
+        </div>
       </div>
 
       <div class="section-title">Recent Transactions</div>
@@ -263,6 +267,27 @@
         <div id="trade-history-list" class="my-orders-list">
           <div class="loading" id="trade-history-loading"><div class="spinner"></div></div>
         </div>
+      </div>
+    </div>
+
+    <!-- BradSec -->
+    <div id="security-screen" class="screen">
+      <div class="top-bar">
+        <div>
+          <div class="user-name">BradSec™</div>
+          <h1>Security Center</h1>
+        </div>
+        <button class="btn-ghost" id="security-back">← Back</button>
+      </div>
+
+      <div class="balance-card" style="padding:16px;">
+        <div class="balance-label">Security Events</div>
+        <div class="balance-amount" id="sec-event-count" style="font-size:28px;">0</div>
+      </div>
+
+      <div class="section-title">Recent Activity</div>
+      <div id="sec-event-list">
+        <div class="loading" id="sec-event-loading"><div class="spinner"></div></div>
       </div>
     </div>
 

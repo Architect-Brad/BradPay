@@ -13,6 +13,7 @@
 </head>
 <body>
   <div id="app">
+  <div id="offline-banner">You're offline — transactions are queued</div>
 
     <!-- Auth Screen -->
     <div id="auth-screen" class="screen active">
@@ -23,6 +24,11 @@
         <input type="email" id="auth-email" placeholder="Email" autocomplete="email" />
         <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password" />
         <button class="btn btn-primary btn-full" id="auth-submit">Sign In</button>
+        <div class="auth-divider">or</div>
+        <button class="btn btn-google btn-full" id="auth-google-btn">
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" />
+          Sign in with Google
+        </button>
       </div>
       <div class="auth-switch">
         Don't have an account? <a id="auth-toggle">Create one</a>
@@ -45,6 +51,11 @@
         <input type="password" id="reg-pin" placeholder="4-6 digit PIN" maxlength="6" inputmode="numeric" pattern="[0-9]*" />
         <input type="password" id="reg-pin-confirm" placeholder="Confirm PIN" maxlength="6" inputmode="numeric" pattern="[0-9]*" />
         <button class="btn btn-primary btn-full" id="register-submit">Create Wallet</button>
+        <div class="auth-divider">or</div>
+        <button class="btn btn-google btn-full" id="register-google-btn">
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" />
+          Sign up with Google
+        </button>
       </div>
       <div class="auth-switch">
         Already have an account? <a id="register-toggle">Sign in</a>
@@ -97,6 +108,10 @@
         <div class="quick-action" id="action-ledger">
           <div class="icon">🔗</div>
           <div class="label">Ledger</div>
+        </div>
+        <div class="quick-action" id="action-security">
+          <div class="icon">🛡️</div>
+          <div class="label">Security</div>
         </div>
       </div>
 
@@ -255,6 +270,27 @@
       </div>
     </div>
 
+    <!-- BradSec -->
+    <div id="security-screen" class="screen">
+      <div class="top-bar">
+        <div>
+          <div class="user-name">BradSec™</div>
+          <h1>Security Center</h1>
+        </div>
+        <button class="btn-ghost" id="security-back">← Back</button>
+      </div>
+
+      <div class="balance-card" style="padding:16px;">
+        <div class="balance-label">Security Events</div>
+        <div class="balance-amount" id="sec-event-count" style="font-size:28px;">0</div>
+      </div>
+
+      <div class="section-title">Recent Activity</div>
+      <div id="sec-event-list">
+        <div class="loading" id="sec-event-loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+
     <!-- Confirm Dialog -->
     <div class="dialog-overlay" id="confirm-dialog">
       <div class="dialog">
@@ -291,5 +327,10 @@
   </script>
   <script type="module" src="/js/qrcode.js"></script>
   <script type="module" src="/js/app.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+    }
+  </script>
 </body>
 </html>

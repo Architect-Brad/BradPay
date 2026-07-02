@@ -7,6 +7,7 @@ from data import (
     create_tariff,
     update_tariff,
 )
+from routes.admin_routes import require_admin
 
 logger = logging.getLogger(__name__)
 tariff_bp = Blueprint("tariffs", __name__, url_prefix="/api/tariffs")
@@ -28,6 +29,7 @@ def tariffs_by_type(type_):
 
 
 @tariff_bp.route("", methods=["POST"])
+@require_admin
 def create():
     data = request.get_json(silent=True) or {}
     name = data.get("name")
@@ -46,6 +48,7 @@ def create():
 
 
 @tariff_bp.route("/<tariff_id>", methods=["PATCH"])
+@require_admin
 def update(tariff_id):
     data = request.get_json(silent=True) or {}
     allowed = ("name", "type", "percentage", "flat_fee", "min_amount", "max_amount", "is_active")

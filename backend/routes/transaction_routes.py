@@ -9,6 +9,7 @@ from data import (
     verify_pin,
 )
 from ledger import get_ledger
+from bradsec import log_event, evaluate_transaction, check_rate_limit
 
 tx_bp = Blueprint("transactions", __name__, url_prefix="/api/transactions")
 
@@ -47,6 +48,13 @@ def send():
     except (TypeError, ValueError):
         return jsonify({"error": "Invalid amount"}), 400
 
+    if not check_rate_limit(g.firebase_uid, "send"):
+        return jsonify({"error": "Send rate limit exceeded. Try again later."}), 429
+
+    log_event("send", "info", g.firebase_uid, {
+        "recipient_uid": recipient_uid, "amount": amount, "note": note, "offline_id": offline_id,
+    })
+
     result = create_transaction(
         sender_uid=g.firebase_uid,
         recipient_uid=recipient_uid,
@@ -60,6 +68,11 @@ def send():
 
     if isinstance(result, dict) and "error" in result:
         return jsonify(result), 400
+
+    tx_ref = result.get("tx_ref") or offline_id or f"TX-{g.firebase_uid[:8]}-{amount}"
+    fraud = evaluate_transaction(g.firebase_uid, recipient_uid, amount, tx_ref)
+    if fraud["flagged"]:
+        logger.warning("Flagged transaction %s: score=%d reasons=%s", tx_ref, fraud["score"], fraud["rules_triggered"])
 
     get_ledger().add_transaction(result)
 

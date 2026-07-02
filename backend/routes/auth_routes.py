@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, g
 from functools import wraps
 from firebase_verify import verify_firebase_token
 from data import create_user, get_user_by_firebase_uid, get_user_by_id
+from bradsec import log_event, check_rate_limit
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
@@ -44,12 +45,19 @@ def verify():
 
     result = verify_firebase_token(token)
     if not result["valid"]:
+        log_event("login_failure", "low", details={"reason": result.get("error", "Invalid token")})
         return jsonify({"error": result["error"]}), 401
 
-    user = get_user_by_firebase_uid(result["uid"])
+    uid = result["uid"]
+    if not check_rate_limit(uid, "login"):
+        log_event("rate_limit_hit", "medium", uid, {"action": "login"})
+        return jsonify({"error": "Too many login attempts. Try again later."}), 429
+
+    user = get_user_by_firebase_uid(uid)
+    log_event("login_success", "info", uid, {"registered": user is not None})
     return jsonify({
         "valid": True,
-        "uid": result["uid"],
+        "uid": uid,
         "email": result.get("email"),
         "name": result.get("name"),
         "registered": user is not None,
@@ -81,6 +89,7 @@ def register():
     if not user:
         return jsonify({"error": "Registration failed"}), 500
 
+    log_event("registration", "info", g.firebase_uid, {"display_name": user.get("display_name")})
     return jsonify({"message": "Registration successful", "user": user}), 201
 
 

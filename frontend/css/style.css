@@ -60,10 +60,10 @@ label { font-size: 14px; font-weight: 500; color: var(--text2); margin-bottom: -
 .btn-secondary:hover { background: #475569; }
 .btn-google {
   background: white; color: #1f2937; border: 1px solid #d1d5db;
-  font-weight: 500; width: 100%;
+  font-weight: 500; width: 100%; padding: 10px 20px; font-size: 14px;
 }
 .btn-google:hover { background: #f9fafb; }
-.btn-google img { width: 18px; height: 18px; }
+.btn-google img { width: 16px; height: 16px; }
 .auth-divider {
   display: flex; align-items: center; gap: 12px; color: var(--text3); font-size: 12px; width: 100%;
 }

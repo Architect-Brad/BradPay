@@ -1,5 +1,6 @@
 import { getIdToken, getCurrentUser } from "./auth.js";
 import { formatAmount, formatDate } from "./wallet.js";
+import { queueRequest } from "./sync.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -86,10 +87,19 @@ function bindOrderSubmit() {
     setLoading(btn, true);
     try {
       const token = await getIdToken();
+      const body = { type: currentOrderType, price, amount };
+
+      if (!navigator.onLine) {
+        queueRequest("/api/trade/orders", "POST", body, { Authorization: `Bearer ${token}` });
+        showToast("Order queued — will submit when online", "info");
+        setLoading(btn, false);
+        return;
+      }
+
       const resp = await fetch("/api/trade/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ type: currentOrderType, price, amount }),
+        body: JSON.stringify(body),
       });
       const data = await resp.json();
       if (data.error) {

@@ -1,8 +1,9 @@
 import { firebaseConfig } from "./firebase-config.js";
-import { initAuth, registerUser, getIdToken, getCurrentUser } from "./auth.js";
+import { initAuth, registerUser, getIdToken, getCurrentUser, onAuthChange, apiGet } from "./auth.js";
 import { getBalance, sendMoney, getHistory, lookupUser, formatAmount, formatDate } from "./wallet.js";
 import { initTrade, refreshTradeScreen } from "./trade.js";
 import { initDaraja, refreshDaraja } from "./daraja.js";
+import { initNetworkListener, getQueueLength, flushQueue, clearQueue } from "./sync.js";
 
 const { initializeApp } = await import("firebase/app");
 const app = initializeApp(firebaseConfig);
@@ -72,6 +73,7 @@ registerScreen("deposit", $("deposit-screen"));
 registerScreen("withdraw", $("withdraw-screen"));
 registerScreen("ledger", $("ledger-screen"));
 registerScreen("trade", $("trade-screen"));
+registerScreen("security", $("security-screen"));
 
 function showToast(message, type = "info") {
   const container = $("toast-container");
@@ -322,25 +324,29 @@ async function handleRegister() {
   const phone = $("reg-phone").value.trim();
   const pin = $("reg-pin").value;
   const pinConfirm = $("reg-pin-confirm").value;
+  const isGoogleAuth = $("reg-password").style.display === "none";
 
   if (!email) { showToast("Email is required", "error"); return; }
-  if (!password || password.length < 6) { showToast("Password must be at least 6 characters", "error"); return; }
+  if (!isGoogleAuth && (!password || password.length < 6)) { showToast("Password must be at least 6 characters", "error"); return; }
   if (!name) { showToast("Name is required", "error"); return; }
   if (pin !== pinConfirm) { showToast("PINs don't match", "error"); return; }
   if (pin.length < 4) { showToast("PIN must be at least 4 digits", "error"); return; }
 
   setLoading($("register-submit"), true);
-  try {
-    const { createUserWithEmailAndPassword } = authFns;
-    await createUserWithEmailAndPassword(auth, email, password);
-  } catch (e) {
-    const msg = e.code === "auth/email-already-in-use" ? "Email already in use" :
-                e.code === "auth/weak-password" ? "Password too weak (min 6 chars)" :
-                e.message || "Account creation failed";
-    $("register-error").textContent = msg;
-    $("register-error").style.display = "block";
-    setLoading($("register-submit"), false);
-    return;
+
+  if (!isGoogleAuth) {
+    try {
+      const { createUserWithEmailAndPassword } = authFns;
+      await createUserWithEmailAndPassword(auth, email, password);
+    } catch (e) {
+      const msg = e.code === "auth/email-already-in-use" ? "Email already in use" :
+                  e.code === "auth/weak-password" ? "Password too weak (min 6 chars)" :
+                  e.message || "Account creation failed";
+      $("register-error").textContent = msg;
+      $("register-error").style.display = "block";
+      setLoading($("register-submit"), false);
+      return;
+    }
   }
 
   // Auth state change will fire and init() will call checkRegistration()
@@ -360,7 +366,7 @@ async function handleRegister() {
     } finally {
       setLoading($("register-submit"), false);
     }
-  }, 500);
+  }, isGoogleAuth ? 200 : 500);
 }
 
 // ── Send / Recipient Lookup ──
@@ -471,6 +477,40 @@ async function handleSend() {
   }
 }
 
+// ── BradSec ──
+async function loadSecurityEvents() {
+  const list = $("sec-event-list");
+  const countEl = $("sec-event-count");
+  $("sec-event-loading").style.display = "block";
+  try {
+    const data = await apiGet("/security/events?limit=50");
+    countEl.textContent = data.total || 0;
+    if (!data.events || data.events.length === 0) {
+      list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text2);font-size:14px;">No security events yet.</div>';
+      return;
+    }
+    list.innerHTML = data.events.map(e => {
+      const sevClass = "sev-" + (e.severity || "info");
+      let detail = "";
+      try { const d = JSON.parse(e.details); detail = Object.entries(d).map(([k,v]) => `${k}: ${v}`).join(" · "); } catch {}
+      return `
+        <div class="tx-item">
+          <div>
+            <div>
+              <span class="event-severity ${sevClass}" style="font-size:10px;">${e.severity}</span>
+              <strong>${e.event_type.replace(/_/g, " ")}</strong>
+            </div>
+            <div style="font-size:11px;color:var(--text3);">${detail || new Date(e.created_at).toLocaleString()}</div>
+          </div>
+          <span style="font-size:11px;color:var(--text3);">${new Date(e.created_at).toLocaleString()}</span>
+        </div>
+      `;
+    }).join("");
+  } catch (e) {
+    list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--danger);">Failed to load security events.</div>';
+  }
+}
+
 // ── QR Code ──
 async function renderQR() {
   const canvas = $("qr-canvas");
@@ -508,33 +548,56 @@ async function renderQR() {
 
 // ── Init ──
 async function init() {
-  const result = await initAuth(app);
-  auth = result.auth;
-  authFns = result;
+  const fns = await initAuth(app);
+  auth = fns.auth;
+  authFns = fns;
 
-  $("dashboard-user-name").textContent = result.user?.displayName
-    ? `Welcome, ${result.user.displayName}`
-    : "Welcome";
-
-  // Don't override if user already navigated away from initial screen
-  const activeId = document.querySelector(".screen.active")?.id;
-  if (activeId && activeId !== "auth-screen" && activeId !== "register-screen") {
-    return;
-  }
-
-  if (result.user) {
-    if (result.registered) {
-      screenStack = ["dashboard"];
-      showScreen("dashboard", false);
-      renderQR();
-      initTrade();
-      initDaraja();
-    } else {
-      showScreen("register");
+  initNetworkListener((online) => {
+    const banner = document.getElementById("offline-banner");
+    if (banner) {
+      banner.style.display = online ? "none" : "flex";
+      document.body.classList.toggle("bradpay-offline", !online);
     }
-  } else {
-    showScreen("auth");
-  }
+  });
+
+  window.addEventListener("queue-flushed", (e) => {
+    const n = e.detail;
+    showToast(`${n} transaction(s) synced`, "success");
+    refreshDashboard();
+  });
+
+  onAuthChange(({ user, registered }) => {
+    $("dashboard-user-name").textContent = user?.displayName
+      ? `Welcome, ${user.displayName}`
+      : "Welcome";
+
+    const activeId = document.querySelector(".screen.active")?.id;
+    if (activeId && activeId !== "auth-screen" && activeId !== "register-screen" && activeId !== "dashboard-screen") {
+      return;
+    }
+
+    if (user) {
+      if (registered) {
+        screenStack = ["dashboard"];
+        showScreen("dashboard", false);
+        renderQR();
+        initTrade();
+        initDaraja();
+        startPolling();
+      } else {
+        showScreen("register");
+        if (user.email && !$("reg-email").value) {
+          $("reg-email").value = user.email;
+          $("reg-name").value = user.displayName || "";
+          $("reg-password").style.display = "none";
+          $("reg-password").removeAttribute("required");
+        }
+      }
+    } else {
+      stopPolling();
+      showScreen("auth");
+    }
+  });
 }
 
 // ── Event Bindings ──
@@ -569,6 +632,23 @@ document.addEventListener("DOMContentLoaded", () => {
   $("register-submit").onclick = () => handleRegister();
   $("reg-password").onkeydown = (e) => { if (e.key === "Enter") $("register-submit").click(); };
 
+  // Google OAuth
+  async function handleGoogleSignIn(buttonId) {
+    setLoading($(buttonId), true);
+    try {
+      const provider = new authFns.GoogleAuthProvider();
+      await authFns.signInWithPopup(auth, provider);
+    } catch (e) {
+      if (e.code !== "auth/popup-closed-by-user") {
+        showToast(e.message || "Google sign-in failed", "error");
+      }
+    } finally {
+      setLoading($(buttonId), false);
+    }
+  }
+  $("auth-google-btn").onclick = () => handleGoogleSignIn("auth-google-btn");
+  $("register-google-btn").onclick = () => handleGoogleSignIn("register-google-btn");
+
   $("logout-btn").onclick = async () => {
     if (authFns) {
       await authFns.signOut(auth);
@@ -600,12 +680,17 @@ document.addEventListener("DOMContentLoaded", () => {
     refreshTradeScreen();
     showScreen("trade");
   };
+  $("action-security").onclick = async () => {
+    await loadSecurityEvents();
+    showScreen("security");
+  };
   $("send-back").onclick = goBack;
   $("receive-back").onclick = goBack;
   $("deposit-back").onclick = goBack;
   $("withdraw-back").onclick = goBack;
   $("ledger-back").onclick = goBack;
   $("trade-back").onclick = goBack;
+  $("security-back").onclick = goBack;
 
   $("send-submit").onclick = handleSend;
   $("send-amount").onkeydown = (e) => { if (e.key === "Enter") handleSend(); };

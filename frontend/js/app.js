@@ -1,5 +1,5 @@
 import { firebaseConfig } from "./firebase-config.js";
-import { initAuth, registerUser, getIdToken, getCurrentUser, onAuthChange } from "./auth.js";
+import { initAuth, registerUser, getIdToken, getCurrentUser, onAuthChange, apiGet } from "./auth.js";
 import { getBalance, sendMoney, getHistory, lookupUser, formatAmount, formatDate } from "./wallet.js";
 import { initTrade, refreshTradeScreen } from "./trade.js";
 import { initDaraja, refreshDaraja } from "./daraja.js";
@@ -73,6 +73,7 @@ registerScreen("deposit", $("deposit-screen"));
 registerScreen("withdraw", $("withdraw-screen"));
 registerScreen("ledger", $("ledger-screen"));
 registerScreen("trade", $("trade-screen"));
+registerScreen("security", $("security-screen"));
 
 function showToast(message, type = "info") {
   const container = $("toast-container");
@@ -476,6 +477,40 @@ async function handleSend() {
   }
 }
 
+// ── BradSec ──
+async function loadSecurityEvents() {
+  const list = $("sec-event-list");
+  const countEl = $("sec-event-count");
+  $("sec-event-loading").style.display = "block";
+  try {
+    const data = await apiGet("/security/events?limit=50");
+    countEl.textContent = data.total || 0;
+    if (!data.events || data.events.length === 0) {
+      list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text2);font-size:14px;">No security events yet.</div>';
+      return;
+    }
+    list.innerHTML = data.events.map(e => {
+      const sevClass = "sev-" + (e.severity || "info");
+      let detail = "";
+      try { const d = JSON.parse(e.details); detail = Object.entries(d).map(([k,v]) => `${k}: ${v}`).join(" · "); } catch {}
+      return `
+        <div class="tx-item">
+          <div>
+            <div>
+              <span class="event-severity ${sevClass}" style="font-size:10px;">${e.severity}</span>
+              <strong>${e.event_type.replace(/_/g, " ")}</strong>
+            </div>
+            <div style="font-size:11px;color:var(--text3);">${detail || new Date(e.created_at).toLocaleString()}</div>
+          </div>
+          <span style="font-size:11px;color:var(--text3);">${new Date(e.created_at).toLocaleString()}</span>
+        </div>
+      `;
+    }).join("");
+  } catch (e) {
+    list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--danger);">Failed to load security events.</div>';
+  }
+}
+
 // ── QR Code ──
 async function renderQR() {
   const canvas = $("qr-canvas");
@@ -645,12 +680,17 @@ document.addEventListener("DOMContentLoaded", () => {
     refreshTradeScreen();
     showScreen("trade");
   };
+  $("action-security").onclick = async () => {
+    await loadSecurityEvents();
+    showScreen("security");
+  };
   $("send-back").onclick = goBack;
   $("receive-back").onclick = goBack;
   $("deposit-back").onclick = goBack;
   $("withdraw-back").onclick = goBack;
   $("ledger-back").onclick = goBack;
   $("trade-back").onclick = goBack;
+  $("security-back").onclick = goBack;
 
   $("send-submit").onclick = handleSend;
   $("send-amount").onkeydown = (e) => { if (e.key === "Enter") handleSend(); };

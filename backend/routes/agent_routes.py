@@ -13,6 +13,7 @@ from data import (
     get_agent_transactions,
     get_active_tariffs,
     get_tariff_by_type,
+    update_kes_balance,
 )
 
 logger = logging.getLogger(__name__)
@@ -118,12 +119,58 @@ def float_topup():
     if kes_balance < amount:
         return jsonify({"error": "Insufficient KES balance"}), 400
 
-    from data import update_kes_balance
     update_kes_balance(user_uid, -amount)
     update_agent_float(user_uid, amount)
 
     create_agent_transaction(user_uid, "float_topup", amount, reference=f"float_{user_uid[:8]}_{amount}")
     return jsonify({"message": "Float topped up", "amount": amount})
+
+
+@agent_bp.route("/float/transfer", methods=["POST"])
+@require_auth
+@require_user
+def float_transfer():
+    data = request.get_json(silent=True) or {}
+    to_agent_uid = data.get("to_agent_uid")
+    amount = data.get("amount")
+    if not to_agent_uid or not amount:
+        return jsonify({"error": "to_agent_uid and amount are required"}), 400
+    try:
+        amount = int(amount)
+        if amount <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({"error": "amount must be a positive integer"}), 400
+
+    from_uid = g.firebase_uid
+    from_agent = get_agent(from_uid)
+    if not from_agent:
+        return jsonify({"error": "You are not an agent"}), 404
+    if from_agent["status"] != "active":
+        return jsonify({"error": "Your agent account is not active"}), 403
+
+    to_agent = get_agent(to_agent_uid)
+    if not to_agent:
+        return jsonify({"error": "Recipient agent not found"}), 404
+    if to_agent["status"] != "active":
+        return jsonify({"error": "Recipient agent is not active"}), 403
+
+    if from_agent.get("float_balance", 0) < amount:
+        return jsonify({"error": "Insufficient float balance"}), 400
+
+    update_agent_float(from_uid, -amount)
+    update_agent_float(to_agent_uid, amount)
+
+    ref = f"float_xfer_{from_uid[:8]}_{to_agent_uid[:8]}_{amount}"
+    create_agent_transaction(from_uid, "float_withdrawal", amount, user_uid=to_agent_uid, reference=ref)
+    create_agent_transaction(to_agent_uid, "float_topup", amount, user_uid=from_uid, reference=ref)
+
+    return jsonify({
+        "message": f"Float transfer of KES {amount / 100:.2f} sent",
+        "amount": amount,
+        "from_agent": from_uid,
+        "to_agent": to_agent_uid,
+    })
 
 
 @agent_bp.route("/cash-in", methods=["POST"])
