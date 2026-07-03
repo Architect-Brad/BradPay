@@ -8,6 +8,7 @@ from bradsec import (
     check_rate_limit, get_rate_limit_remaining,
     evaluate_transaction, get_flagged_transactions,
     resolve_flag, get_flag_stats, get_security_summary,
+    get_settings, update_settings,
 )
 
 logger = logging.getLogger(__name__)
@@ -73,6 +74,31 @@ def rate_limit_status():
     for act in RATE_LIMITS:
         statuses[act] = get_rate_limit_remaining(uid, act)
     return jsonify({"limits": statuses})
+
+
+# ── Settings ──
+
+@security_bp.route("/settings", methods=["GET"])
+@require_admin
+def list_settings():
+    return jsonify(get_settings())
+
+
+@security_bp.route("/settings", methods=["POST"])
+@require_admin
+def save_settings():
+    data = request.get_json(silent=True) or {}
+    allowed = {"auto_block_enabled": bool, "auto_block_threshold": int}
+    overrides = {}
+    for key, typ in allowed.items():
+        val = data.get(key)
+        if val is not None:
+            try:
+                overrides[key] = typ(val)
+            except (ValueError, TypeError):
+                return jsonify({"error": f"Invalid type for {key}"}), 400
+    result = update_settings(overrides)
+    return jsonify({"message": "Settings updated", "settings": result})
 
 
 # ── Admin endpoints ──

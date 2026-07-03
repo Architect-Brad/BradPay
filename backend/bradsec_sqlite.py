@@ -54,6 +54,10 @@ def init_bradsec():
         );
         CREATE INDEX IF NOT EXISTS idx_flags_status ON flagged_transactions(status);
         CREATE INDEX IF NOT EXISTS idx_flags_tx ON flagged_transactions(tx_ref);
+        CREATE TABLE IF NOT EXISTS bradsec_settings (
+            key TEXT PRIMARY KEY NOT NULL,
+            value TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS rate_limit_counts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             uid TEXT NOT NULL,
@@ -208,12 +212,41 @@ def get_transactions(firebase_uid, limit=100):
     return [dict(r) for r in rows]
 
 
-def evaluate_transaction(sender_uid, recipient_uid, amount, tx_ref=None):
+def get_bradsec_settings():
+    conn = get_db()
+    rows = conn.execute("SELECT key, value FROM bradsec_settings").fetchall()
+    conn.close()
+    settings = {}
+    for r in rows:
+        val = r["value"].lower()
+        if val in ("true", "false"):
+            settings[r["key"]] = val == "true"
+        else:
+            try:
+                settings[r["key"]] = int(r["value"])
+            except (ValueError, TypeError):
+                settings[r["key"]] = r["value"]
+    return settings
+
+
+def set_bradsec_settings(settings):
+    conn = get_db()
+    for key, value in settings.items():
+        str_val = str(value).lower()
+        conn.execute(
+            "INSERT INTO bradsec_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?",
+            (key, str_val, str_val),
+        )
+    conn.commit()
+    conn.close()
+
+
+def evaluate_transaction(sender_uid, recipient_uid, amount, tx_ref=None, status="open"):
     import json, time
     conn = get_db()
     conn.execute(
-        "INSERT INTO flagged_transactions (tx_ref, sender_uid, recipient_uid, amount, score, rules_triggered) VALUES (?, ?, ?, ?, ?, ?)",
-        (tx_ref or f"FRAUD-{int(time.time())}-{sender_uid[:8]}", sender_uid, recipient_uid, amount, 0, "[]"),
+        "INSERT INTO flagged_transactions (tx_ref, sender_uid, recipient_uid, amount, score, rules_triggered, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (tx_ref or f"FRAUD-{int(time.time())}-{sender_uid[:8]}", sender_uid, recipient_uid, amount, 0, "[]", status),
     )
     conn.commit()
     conn.close()

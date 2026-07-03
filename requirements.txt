@@ -7,3 +7,4 @@ rsa>=4.9
 firebase-admin>=6.0
 google-cloud-firestore>=2.0
 pytest>=8.0
+psycopg2-binary>=2.9

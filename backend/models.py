@@ -195,6 +195,11 @@ def init_bradsec():
         CREATE INDEX IF NOT EXISTS idx_flags_status ON flagged_transactions(status);
         CREATE INDEX IF NOT EXISTS idx_flags_tx ON flagged_transactions(tx_ref);
 
+        CREATE TABLE IF NOT EXISTS bradsec_settings (
+            key TEXT PRIMARY KEY NOT NULL,
+            value TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS rate_limit_counts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             uid TEXT NOT NULL,

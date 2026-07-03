@@ -49,6 +49,8 @@ if os.environ.get("FIREBASE_SERVICE_ACCOUNT"):
         resolve_flag,
         get_flag_stats,
         get_security_summary,
+        get_bradsec_settings,
+        set_bradsec_settings,
     )
 else:
     from models import (
@@ -103,4 +105,6 @@ else:
         resolve_flag,
         get_flag_stats,
         get_security_summary,
+        get_settings,
+        update_settings,
     )

@@ -50,6 +50,12 @@
     .modal { background: var(--bg2); border-radius: var(--radius); padding: 24px; max-width: 400px; width: 90%; }
     .modal h3 { margin-bottom: 12px; }
     .modal-actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+    .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; inset: 0; background: var(--bg3); transition: .3s; border-radius: 24px; }
+    .slider:before { content: ""; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px; background: #fff; transition: .3s; border-radius: 50%; }
+    input:checked + .slider { background: var(--primary); }
+    input:checked + .slider:before { transform: translateX(20px); }
   </style>
 </head>
 <body>
@@ -142,6 +148,26 @@
               <div class="stat-value" id="sec-open-flags">0</div>
               <div class="stat-label">Open Flags</div>
             </div>
+          </div>
+
+          <div class="card" id="sec-settings-card">
+            <h3>Auto-Block Configuration</h3>
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+              <label style="font-size:14px;color:var(--text2);">Auto-block flagged transactions</label>
+              <label class="switch">
+                <input type="checkbox" id="auto-block-toggle" />
+                <span class="slider round"></span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label>Auto-block threshold (score 0–100)</label>
+              <div style="display:flex;gap:12px;align-items:center;">
+                <input type="range" id="auto-block-threshold" min="0" max="100" value="60" style="flex:1;" />
+                <span id="auto-block-threshold-val" style="font-size:14px;font-weight:700;min-width:32px;text-align:center;">60</span>
+              </div>
+            </div>
+            <button class="btn btn-primary btn-full" id="auto-block-save">Save Settings</button>
+            <div id="auto-block-result" class="hidden" style="margin-top:8px;"></div>
           </div>
 
           <div class="card">
@@ -358,6 +384,50 @@
       if (data.error) { showToast(data.error, "error"); return; }
       showToast(`Flag #${flagId} ${resolution}`, "success");
       loadSecurityDashboard();
+    };
+
+    // ── Auto-Block Settings ──
+    $("auto-block-threshold").addEventListener("input", () => {
+      $("auto-block-threshold-val").textContent = $("auto-block-threshold").value;
+    });
+
+    async function loadAutoBlockSettings() {
+      try {
+        const data = await adminFetch("/security/settings");
+        if (data.error) return;
+        $("auto-block-toggle").checked = !!data.auto_block_enabled;
+        $("auto-block-threshold").value = data.auto_block_threshold || 60;
+        $("auto-block-threshold-val").textContent = $("auto-block-threshold").value;
+      } catch (e) { /* settings card will just show defaults */ }
+    }
+
+    $("auto-block-save").onclick = async () => {
+      const enabled = $("auto-block-toggle").checked;
+      const threshold = parseInt($("auto-block-threshold").value, 10);
+      setLoading($("auto-block-save"), true);
+      const data = await adminFetch("/security/settings", {
+        method: "POST",
+        body: { auto_block_enabled: enabled, auto_block_threshold: threshold },
+      });
+      setLoading($("auto-block-save"), false);
+      const el = $("auto-block-result");
+      el.classList.remove("hidden", "error", "success");
+      if (data.error) {
+        el.className = "result-box error";
+        el.textContent = "Error: " + data.error;
+      } else {
+        el.className = "result-box success";
+        el.textContent = "Settings saved";
+        showToast("Auto-block settings saved", "success");
+      }
+      setTimeout(() => { el.classList.add("hidden"); }, 3000);
+    };
+
+    // Override loadSecurityDashboard to also load settings
+    const _origLoadSec = loadSecurityDashboard;
+    loadSecurityDashboard = function() {
+      _origLoadSec();
+      loadAutoBlockSettings();
     };
 
     // ── Init ──

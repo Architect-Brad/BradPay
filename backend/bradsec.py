@@ -47,6 +47,8 @@ RATE_LIMITS = {
 }
 
 FLAG_THRESHOLD = 40
+AUTO_BLOCK_ENABLED = os.environ.get("BRADSEC_AUTO_BLOCK", "").lower() in ("1", "true", "yes")
+AUTO_BLOCK_THRESHOLD = int(os.environ.get("BRADSEC_AUTO_BLOCK_THRESHOLD", "60"))
 
 _use_firestore = bool(os.environ.get("FIREBASE_SERVICE_ACCOUNT"))
 
@@ -117,9 +119,32 @@ def _count_recent_recipient(sender_uid, recipient_uid, seconds):
     return count
 
 
+def get_settings():
+    merged = {
+        "auto_block_enabled": AUTO_BLOCK_ENABLED,
+        "auto_block_threshold": AUTO_BLOCK_THRESHOLD,
+        "flag_threshold": FLAG_THRESHOLD,
+    }
+    db_settings = _backend().get_bradsec_settings()
+    if db_settings:
+        merged["auto_block_enabled"] = db_settings.get("auto_block_enabled", AUTO_BLOCK_ENABLED)
+        merged["auto_block_threshold"] = db_settings.get("auto_block_threshold", AUTO_BLOCK_THRESHOLD)
+    return merged
+
+
+def update_settings(overrides):
+    current = get_settings()
+    current.update(overrides)
+    _backend().set_bradsec_settings(current)
+    return current
+
+
 def evaluate_transaction(sender_uid, recipient_uid, amount, tx_ref=None):
     triggered = []
     total_score = 0
+    settings = get_settings()
+    auto_block = settings["auto_block_enabled"]
+    auto_block_threshold = settings["auto_block_threshold"]
 
     recent_sends = _count_recent_actions(sender_uid, "send", 300)
     if recent_sends >= 5:
@@ -163,19 +188,24 @@ def evaluate_transaction(sender_uid, recipient_uid, amount, tx_ref=None):
 
     total_score = min(total_score, 100)
     is_flagged = total_score >= FLAG_THRESHOLD
+    is_auto_blocked = auto_block and is_flagged and total_score >= auto_block_threshold
 
     if is_flagged:
         ref = tx_ref or f"FRAUD-{int(time.time())}-{sender_uid[:8]}"
-        _backend().evaluate_transaction(sender_uid, recipient_uid, amount, ref)
+        flag_status = "blocked" if is_auto_blocked else "open"
+        _backend().evaluate_transaction(sender_uid, recipient_uid, amount, ref, status=flag_status)
         log_event("fraud_flag", "high", sender_uid, {
             "tx_ref": ref, "amount": amount, "score": total_score,
             "rules": [r["label"] for r in triggered],
+            "auto_blocked": is_auto_blocked,
         })
 
     return {
         "score": total_score,
         "flagged": is_flagged,
+        "auto_blocked": is_auto_blocked,
         "threshold": FLAG_THRESHOLD,
+        "auto_block_threshold": auto_block_threshold if auto_block else None,
         "rules_triggered": [r["label"] for r in triggered],
     }
 

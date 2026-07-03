@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify, g
+from datetime import datetime, timezone
 from routes.auth_routes import require_auth, require_user
 from data import (
     create_transaction,
@@ -10,6 +11,9 @@ from data import (
 )
 from ledger import get_ledger
 from bradsec import log_event, evaluate_transaction, check_rate_limit
+import logging
+
+logger = logging.getLogger(__name__)
 
 tx_bp = Blueprint("transactions", __name__, url_prefix="/api/transactions")
 
@@ -51,6 +55,22 @@ def send():
     if not check_rate_limit(g.firebase_uid, "send"):
         return jsonify({"error": "Send rate limit exceeded. Try again later."}), 429
 
+    # Evaluate fraud BEFORE processing — auto-blocked transactions are rejected
+    tx_ref = offline_id or f"BRADPAY-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{g.firebase_uid[:8]}"
+    fraud = evaluate_transaction(g.firebase_uid, recipient_uid, amount, tx_ref)
+    if fraud.get("auto_blocked"):
+        log_event("fraud_flag", "high", g.firebase_uid, {
+            "tx_ref": tx_ref, "amount": amount, "score": fraud["score"],
+            "rules": fraud["rules_triggered"], "auto_blocked": True,
+        })
+        return jsonify({
+            "error": "Transaction blocked by fraud detection",
+            "fraud": fraud,
+        }), 403
+
+    if fraud["flagged"]:
+        logger.warning("Flagged transaction %s: score=%d reasons=%s", tx_ref, fraud["score"], fraud["rules_triggered"])
+
     log_event("send", "info", g.firebase_uid, {
         "recipient_uid": recipient_uid, "amount": amount, "note": note, "offline_id": offline_id,
     })
@@ -68,11 +88,6 @@ def send():
 
     if isinstance(result, dict) and "error" in result:
         return jsonify(result), 400
-
-    tx_ref = result.get("tx_ref") or offline_id or f"TX-{g.firebase_uid[:8]}-{amount}"
-    fraud = evaluate_transaction(g.firebase_uid, recipient_uid, amount, tx_ref)
-    if fraud["flagged"]:
-        logger.warning("Flagged transaction %s: score=%d reasons=%s", tx_ref, fraud["score"], fraud["rules_triggered"])
 
     get_ledger().add_transaction(result)
 

@@ -9,6 +9,22 @@ LEDGER_FILE = os.environ.get("BRADPAY_LEDGER_PATH", "")
 _lock = threading.Lock()
 
 
+def _backup(data):
+    try:
+        from blob_backup import backup_ledger
+        backup_ledger(data)
+    except Exception:
+        pass
+
+
+def _restore():
+    try:
+        from blob_backup import restore_ledger
+        return restore_ledger()
+    except Exception:
+        return None
+
+
 class BradLedger:
     def __init__(self):
         self.chain = []
@@ -34,13 +50,14 @@ class BradLedger:
                 self._create_genesis()
 
     def _save(self):
-        if not LEDGER_FILE:
-            return
-        try:
-            with open(LEDGER_FILE, "w") as f:
-                json.dump({"chain": self.chain, "pending": self.pending_transactions}, f, indent=2)
-        except OSError:
-            pass
+        data = {"chain": self.chain, "pending": self.pending_transactions}
+        if LEDGER_FILE:
+            try:
+                with open(LEDGER_FILE, "w") as f:
+                    json.dump(data, f, indent=2)
+            except OSError:
+                pass
+        _backup(data)
 
     def _create_genesis(self):
         genesis = {
