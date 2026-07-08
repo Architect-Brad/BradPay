@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>BradPay Admin</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    .admin-page { max-width: 720px; margin: 0 auto; padding: 20px; }
+    .admin-page h1 { font-size: 24px; margin-bottom: 4px; }
+    .admin-page .subtitle { color: var(--text3); font-size: 14px; margin-bottom: 24px; }
+    .admin-page .back-link { display: inline-block; margin-bottom: 16px; color: var(--primary); text-decoration: none; font-size: 14px; }
+    .admin-page .back-link:hover { text-decoration: underline; }
+    .card { background: var(--bg2); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; border: 1px solid var(--bg3); }
+    .card h3 { font-size: 16px; margin-bottom: 12px; color: var(--primary-light); }
+    .result-box { background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.3); border-radius: var(--radius-sm); padding: 16px; margin-top: 12px; font-size: 14px; white-space: pre-wrap; word-break: break-all; }
+    .result-box.error { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); }
+    .result-box.success { background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.3); }
+    .hidden { display: none; }
+    .status-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+    .status-badge.online { background: rgba(34,197,94,0.2); color: var(--success); }
+    .status-badge.warning { background: rgba(245,158,11,0.2); color: var(--warning); }
+    .status-badge.danger { background: rgba(239,68,68,0.2); color: var(--danger); }
+    .key-hint { color: var(--text3); font-size: 12px; margin-top: 4px; }
+    .tab-bar { display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; }
+    .tab { padding: 8px 16px; border-radius: var(--radius-sm); cursor: pointer; font-size: 14px; background: var(--bg2); color: var(--text2); border: 1px solid transparent; }
+    .tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .tab:hover { border-color: var(--primary); }
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    .stat-box { background: var(--bg2); border-radius: var(--radius-sm); padding: 16px; text-align: center; border: 1px solid var(--bg3); }
+    .stat-value { font-size: 22px; font-weight: 700; color: var(--text); }
+    .stat-label { font-size: 12px; color: var(--text3); margin-top: 4px; }
+    .event-item, .flag-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--bg3); font-size: 13px; }
+    .event-item:last-child, .flag-item:last-child { border: none; }
+    .event-type { color: var(--text2); font-size: 12px; }
+    .event-severity { font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+    .sev-high { background: rgba(239,68,68,0.2); color: var(--danger); }
+    .sev-medium { background: rgba(245,158,11,0.2); color: var(--warning); }
+    .sev-low { background: rgba(59,130,246,0.2); color: var(--primary-light); }
+    .sev-info { background: rgba(148,163,184,0.2); color: var(--text2); }
+    .flag-score { font-weight: 700; }
+    .flag-score.high { color: var(--danger); }
+    .flag-score.medium { color: var(--warning); }
+    .flag-actions { display: flex; gap: 6px; margin-top: 6px; }
+    .flag-actions button { padding: 4px 10px; font-size: 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; }
+    .btn-approve { background: rgba(34,197,94,0.2); color: var(--success); }
+    .btn-block { background: rgba(239,68,68,0.2); color: var(--danger); }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .modal { background: var(--bg2); border-radius: var(--radius); padding: 24px; max-width: 400px; width: 90%; }
+    .modal h3 { margin-bottom: 12px; }
+    .modal-actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+    .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; inset: 0; background: var(--bg3); transition: .3s; border-radius: 24px; }
+    .slider:before { content: ""; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px; background: #fff; transition: .3s; border-radius: 50%; }
+    input:checked + .slider { background: var(--primary); }
+    input:checked + .slider:before { transform: translateX(20px); }
+  </style>
+</head>
+<body>
+  <div class="admin-page" id="app">
+    <a href="/" class="back-link">← Back to BradPay</a>
+    <h1>BradPay Admin Panel</h1>
+    <p class="subtitle">Internal KES issuance, debit, and system management.</p>
+
+    <!-- Login -->
+    <div id="admin-login">
+      <div class="card">
+        <h3>Admin Authentication</h3>
+        <p style="color:var(--text2);font-size:14px;margin-bottom:12px;">Enter your admin API key to access the panel.</p>
+        <div class="form-group">
+          <label>API Key</label>
+          <input type="password" id="admin-api-key" placeholder="Enter admin API key" autocomplete="off" />
+        </div>
+        <button class="btn btn-primary btn-full" id="admin-login-submit">Authenticate</button>
+        <div class="key-hint">Key stored locally for the session.</div>
+        <div id="admin-login-error" style="color:var(--danger);font-size:14px;margin-top:8px;display:none;"></div>
+      </div>
+    </div>
+
+    <!-- Panel -->
+    <div id="admin-panel" class="hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <span class="status-badge online" id="admin-status-badge">Authenticated</span>
+        <button class="btn btn-ghost btn-sm" id="admin-logout">Lock Panel</button>
+      </div>
+
+      <div class="tab-bar">
+        <div class="tab active" data-tab="tab-issuance">Issuance</div>
+        <div class="tab" data-tab="tab-security">BradSec</div>
+      </div>
+
+      <div id="tab-issuance" class="tab-panel">
+        <div class="card">
+          <h3>Credit User (Deposit KES)</h3>
+          <p style="color:var(--text2);font-size:14px;margin-bottom:12px;">Add KES to a user's balance. This is internal issuance — not backed by M-PESA.</p>
+          <div class="form-group">
+            <label>User UID (Firebase UID)</label>
+            <input type="text" id="credit-uid" placeholder="Firebase UID" autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label>Amount (KES)</label>
+            <input type="number" id="credit-amount" placeholder="e.g. 1000" min="1" step="1" inputmode="numeric" />
+          </div>
+          <div class="form-group">
+            <label>Note (optional)</label>
+            <input type="text" id="credit-note" placeholder="Admin credit" />
+          </div>
+          <button class="btn btn-primary btn-full" id="credit-submit">Credit User</button>
+          <div id="credit-result" class="hidden"></div>
+        </div>
+
+        <div class="card">
+          <h3>Debit User (Withdraw KES)</h3>
+          <p style="color:var(--text2);font-size:14px;margin-bottom:12px;">Remove KES from a user's balance.</p>
+          <div class="form-group">
+            <label>User UID (Firebase UID)</label>
+            <input type="text" id="debit-uid" placeholder="Firebase UID" autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label>Amount (KES)</label>
+            <input type="number" id="debit-amount" placeholder="e.g. 500" min="1" step="1" inputmode="numeric" />
+          </div>
+          <div class="form-group">
+            <label>Note (optional)</label>
+            <input type="text" id="debit-note" placeholder="Admin debit" />
+          </div>
+          <button class="btn btn-danger btn-full" id="debit-submit">Debit User</button>
+          <div id="debit-result" class="hidden"></div>
+        </div>
+      </div>
+
+      <div id="tab-security" class="tab-panel hidden">
+        <div id="sec-loading" style="text-align:center;padding:40px;color:var(--text2);">Loading BradSec dashboard...</div>
+
+        <div id="sec-content" class="hidden">
+          <div class="stat-grid">
+            <div class="stat-box">
+              <div class="stat-value" id="sec-high-events">0</div>
+              <div class="stat-label">High-Severity Events (24h)</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value" id="sec-total-events">0</div>
+              <div class="stat-label">Total Events (24h)</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value" id="sec-open-flags">0</div>
+              <div class="stat-label">Open Flags</div>
+            </div>
+          </div>
+
+          <div class="card" id="sec-settings-card">
+            <h3>Auto-Block Configuration</h3>
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+              <label style="font-size:14px;color:var(--text2);">Auto-block flagged transactions</label>
+              <label class="switch">
+                <input type="checkbox" id="auto-block-toggle" />
+                <span class="slider round"></span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label>Auto-block threshold (score 0–100)</label>
+              <div style="display:flex;gap:12px;align-items:center;">
+                <input type="range" id="auto-block-threshold" min="0" max="100" value="60" style="flex:1;" />
+                <span id="auto-block-threshold-val" style="font-size:14px;font-weight:700;min-width:32px;text-align:center;">60</span>
+              </div>
+            </div>
+            <button class="btn btn-primary btn-full" id="auto-block-save">Save Settings</button>
+            <div id="auto-block-result" class="hidden" style="margin-top:8px;"></div>
+          </div>
+
+          <div class="card">
+            <h3>Flagged Transactions</h3>
+            <div id="sec-flags"><p style="color:var(--text2);font-size:14px;">None open.</p></div>
+          </div>
+
+          <div class="card">
+            <h3>Recent Security Events</h3>
+            <div id="sec-events"><p style="color:var(--text2);font-size:14px;">Loading...</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const API_BASE = "/api";
+
+    function showToast(msg, type = "info") {
+      const c = document.getElementById("toast-container");
+      const t = document.createElement("div");
+      t.className = `toast ${type}`;
+      t.textContent = msg;
+      c.appendChild(t);
+      setTimeout(() => t.remove(), 3500);
+    }
+
+    function setLoading(el, loading) {
+      if (loading) { el.disabled = true; el.dataset.text = el.textContent; el.textContent = "Processing..."; }
+      else { el.disabled = false; el.textContent = el.dataset.text || el.textContent; }
+    }
+
+    function escapeHtml(s) { if (!s) return ""; const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+    function formatKES(cents) {
+      return "KES " + (cents / 100).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function showResult(el, data) {
+      el.classList.remove("hidden", "error", "success");
+      if (data.error) {
+        el.className = "result-box error";
+        el.textContent = `Error: ${data.error}`;
+      } else {
+        el.className = "result-box success";
+        el.textContent = JSON.stringify(data, null, 2);
+      }
+    }
+
+    async function adminFetch(path, opts = {}) {
+      const apiKey = localStorage.getItem("admin_api_key");
+      const resp = await fetch(`${API_BASE}${path}`, {
+        ...opts,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}`, ...opts.headers },
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+      });
+      return resp.json();
+    }
+
+    // ── Auth state ──
+    function checkAuth() {
+      const key = localStorage.getItem("admin_api_key");
+      if (key) {
+        $("admin-login").classList.add("hidden");
+        $("admin-panel").classList.remove("hidden");
+      }
+    }
+
+    $("admin-login-submit").onclick = async () => {
+      const key = $("admin-api-key").value.trim();
+      if (!key) { $("admin-login-error").style.display = "block"; $("admin-login-error").textContent = "API key is required"; return; }
+      localStorage.setItem("admin_api_key", key);
+      const data = await adminFetch("/admin/credit", {
+        method: "POST",
+        body: { uid: "test", amount: 1 },
+      });
+      if (data.error && data.error.includes("Invalid admin key")) {
+        localStorage.removeItem("admin_api_key");
+        $("admin-login-error").style.display = "block";
+        $("admin-login-error").textContent = "Invalid API key";
+        return;
+      }
+      $("admin-login-error").style.display = "none";
+      showToast("Authenticated successfully", "success");
+      checkAuth();
+    };
+
+    $("admin-logout").onclick = () => {
+      localStorage.removeItem("admin_api_key");
+      $("admin-panel").classList.add("hidden");
+      $("admin-login").classList.remove("hidden");
+      $("admin-api-key").value = "";
+      showToast("Panel locked", "info");
+    };
+
+    // ── Credit ──
+    $("credit-submit").onclick = async () => {
+      const uid = $("credit-uid").value.trim();
+      const amountStr = $("credit-amount").value;
+      const note = $("credit-note").value.trim() || "Admin credit";
+      if (!uid || !amountStr) { showToast("UID and amount are required", "error"); return; }
+      const amount = Math.round(parseFloat(amountStr) * 100);
+      setLoading($("credit-submit"), true);
+      const data = await adminFetch("/admin/credit", { method: "POST", body: { uid, amount, note } });
+      setLoading($("credit-submit"), false);
+      showResult($("credit-result"), data);
+      if (!data.error) {
+        showToast(`Credited ${formatKES(amount)}`, "success");
+        $("credit-uid").value = ""; $("credit-amount").value = ""; $("credit-note").value = "";
+      }
+    };
+
+    // ── Debit ──
+    $("debit-submit").onclick = async () => {
+      const uid = $("debit-uid").value.trim();
+      const amountStr = $("debit-amount").value;
+      const note = $("debit-note").value.trim() || "Admin debit";
+      if (!uid || !amountStr) { showToast("UID and amount are required", "error"); return; }
+      const amount = Math.round(parseFloat(amountStr) * 100);
+      setLoading($("debit-submit"), true);
+      const data = await adminFetch("/admin/debit", { method: "POST", body: { uid, amount, note } });
+      setLoading($("debit-submit"), false);
+      showResult($("debit-result"), data);
+      if (!data.error) {
+        showToast(`Debited ${formatKES(amount)}`, "success");
+        $("debit-uid").value = ""; $("debit-amount").value = ""; $("debit-note").value = "";
+      }
+    };
+
+    // ── Allow Enter key to submit ──
+    $("admin-api-key").addEventListener("keydown", (e) => { if (e.key === "Enter") $("admin-login-submit").click(); });
+
+    // ── Tab switching ──
+    document.querySelectorAll(".tab").forEach(tab => {
+      tab.onclick = () => {
+        document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        document.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
+        const panel = document.getElementById(tab.dataset.tab);
+        panel.classList.remove("hidden");
+        if (tab.dataset.tab === "tab-security") loadSecurityDashboard();
+      };
+    });
+
+    // ── BradSec Dashboard ──
+    async function loadSecurityDashboard() {
+      $("sec-loading").classList.remove("hidden");
+      $("sec-content").classList.add("hidden");
+      try {
+        const data = await adminFetch("/security/dashboard?limit=30");
+        if (data.error) { $("sec-loading").textContent = "Error: " + data.error; return; }
+        $("sec-high-events").textContent = data.summary.high_severity_24h;
+        $("sec-total-events").textContent = data.summary.total_events_24h;
+        $("sec-open-flags").textContent = data.summary.open_flags;
+        renderFlags(data.open_flags || []);
+        renderEvents(data.recent_events || []);
+        $("sec-loading").classList.add("hidden");
+        $("sec-content").classList.remove("hidden");
+      } catch (e) {
+        $("sec-loading").textContent = "Failed to load BradSec dashboard";
+      }
+    }
+
+    function severityClass(sev) {
+      return "sev-" + (sev || "info");
+    }
+
+    function renderFlags(flags) {
+      const el = $("sec-flags");
+      if (!flags.length) { el.innerHTML = '<p style="color:var(--text2);font-size:14px;">No flagged transactions.</p>'; return; }
+      el.innerHTML = flags.map(f => {
+        const scoreClass = f.score >= 60 ? "high" : f.score >= 40 ? "medium" : "";
+        return `
+          <div class="flag-item">
+            <div>
+              <div><strong>${escapeHtml(f.tx_ref)}</strong> <span class="flag-score ${scoreClass}">(${f.score})</span></div>
+              <div class="event-type">${escapeHtml(f.sender_uid || "?")} → ${escapeHtml(f.recipient_uid || "?")} · KES ${(f.amount/100).toFixed(2)}</div>
+              ${f.rules_triggered ? '<div class="event-type">' + JSON.parse(f.rules_triggered).join(" · ") + '</div>' : ""}
+              <div class="flag-actions">
+                <button class="btn-approve" onclick="resolveFlag(${f.id},'approved')">✓ Approve</button>
+                <button class="btn-block" onclick="resolveFlag(${f.id},'blocked')">✗ Block</button>
+              </div>
+            </div>
+            <span style="font-size:11px;color:var(--text3);">${f.created_at ? new Date(f.created_at).toLocaleString() : ""}</span>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderEvents(events) {
+      const el = $("sec-events");
+      if (!events.length) { el.innerHTML = '<p style="color:var(--text2);font-size:14px;">No recent events.</p>'; return; }
+      el.innerHTML = events.map(e => `
+        <div class="event-item">
+          <div>
+            <div><span class="event-severity ${severityClass(e.severity)}">${e.severity}</span> ${escapeHtml(e.event_type)}</div>
+            <div class="event-type">${escapeHtml(e.uid || "")} · ${e.created_at ? new Date(e.created_at).toLocaleString() : ""}</div>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    window.resolveFlag = async (flagId, resolution) => {
+      const note = prompt(`Enter note for ${resolution} reason:`, "");
+      if (note === null) return;
+      setLoading($("sec-open-flags"), true);
+      const data = await adminFetch(`/security/flags/${flagId}/resolve`, {
+        method: "POST", body: { resolution, note },
+      });
+      if (data.error) { showToast(data.error, "error"); return; }
+      showToast(`Flag #${flagId} ${resolution}`, "success");
+      loadSecurityDashboard();
+    };
+
+    // ── Auto-Block Settings ──
+    $("auto-block-threshold").addEventListener("input", () => {
+      $("auto-block-threshold-val").textContent = $("auto-block-threshold").value;
+    });
+
+    async function loadAutoBlockSettings() {
+      try {
+        const data = await adminFetch("/security/settings");
+        if (data.error) return;
+        $("auto-block-toggle").checked = !!data.auto_block_enabled;
+        $("auto-block-threshold").value = data.auto_block_threshold || 60;
+        $("auto-block-threshold-val").textContent = $("auto-block-threshold").value;
+      } catch (e) { /* settings card will just show defaults */ }
+    }
+
+    $("auto-block-save").onclick = async () => {
+      const enabled = $("auto-block-toggle").checked;
+      const threshold = parseInt($("auto-block-threshold").value, 10);
+      setLoading($("auto-block-save"), true);
+      const data = await adminFetch("/security/settings", {
+        method: "POST",
+        body: { auto_block_enabled: enabled, auto_block_threshold: threshold },
+      });
+      setLoading($("auto-block-save"), false);
+      const el = $("auto-block-result");
+      el.classList.remove("hidden", "error", "success");
+      if (data.error) {
+        el.className = "result-box error";
+        el.textContent = "Error: " + data.error;
+      } else {
+        el.className = "result-box success";
+        el.textContent = "Settings saved";
+        showToast("Auto-block settings saved", "success");
+      }
+      setTimeout(() => { el.classList.add("hidden"); }, 3000);
+    };
+
+    // Override loadSecurityDashboard to also load settings
+    const _origLoadSec = loadSecurityDashboard;
+    loadSecurityDashboard = function() {
+      _origLoadSec();
+      loadAutoBlockSettings();
+    };
+
+    // ── Init ──
+    checkAuth();
+  </script>
+</body>
+</html>

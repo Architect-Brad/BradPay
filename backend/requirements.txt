@@ -1,0 +1,7 @@
+flask>=3.0
+flask-cors>=4.0
+requests>=2.31
+python-dotenv>=1.0
+pyjwt>=2.8
+rsa>=4.9
+firebase-admin>=6.0

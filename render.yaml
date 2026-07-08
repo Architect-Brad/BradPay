@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: bradpay
+    env: python
+    buildCommand: pip install -r backend/requirements.txt gunicorn
+    startCommand: gunicorn backend.app:create_app --worker-class gevent --bind 0.0.0.0:$PORT --timeout 30 --workers 2
+    healthCheckPath: /
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FIREBASE_PROJECT_ID
+        value: bradpay-web
+      - key: FIREBASE_API_KEY
+        value: AIzaSyAlQ4BviLH6W-wzutkLcC-lqibGFoAYU6A
+      - key: FIREBASE_AUTH_DOMAIN
+        value: bradpay-web.firebaseapp.com

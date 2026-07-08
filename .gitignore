@@ -1,0 +1,9 @@
+.env
+.env.example
+.env.production
+*.pyc
+__pycache__/
+*.db
+.vercel
+node_modules/
+.DS_Store

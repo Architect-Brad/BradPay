@@ -1,0 +1,23 @@
+{
+  "name": "BradPay",
+  "short_name": "BradPay",
+  "description": "BradPay - The Financial Engine of the Bradverse",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/img/logo-icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/img/favicon.svg",
+      "sizes": "32x32",
+      "type": "image/svg+xml"
+    }
+  ]
+}

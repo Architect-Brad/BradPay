@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="BradPay — Kenya's mobile wallet. Send KES, deposit via M-PESA, trade on the exchange." />
+  <title>BradPay — The Financial Engine of the Bradverse</title>
+  <link rel="icon" type="image/svg+xml" href="/img/favicon.svg" />
+  <link rel="apple-touch-icon" href="/img/logo-icon.svg" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f172a; --bg2: #1e293b; --bg3: #334155;
+      --primary: #3b82f6; --primary-dark: #2563eb; --primary-light: #60a5fa;
+      --text: #f1f5f9; --text2: #94a3b8; --text3: #64748b;
+      --success: #22c55e; --danger: #ef4444;
+      --radius: 12px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+    /* Nav */
+    nav { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; max-width: 1100px; margin: 0 auto; }
+    nav .logo { font-size: 22px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+    nav .logo img { height: 32px; }
+    nav .nav-links { display: flex; gap: 24px; align-items: center; }
+    nav a { color: var(--text2); text-decoration: none; font-size: 14px; font-weight: 500; }
+    nav a:hover { color: var(--text); }
+
+    /* Hero */
+    .hero { padding: 80px 24px; text-align: center; max-width: 800px; margin: 0 auto; }
+    .hero h1 { font-size: clamp(36px, 6vw, 56px); font-weight: 800; line-height: 1.1; margin-bottom: 20px; }
+    .hero h1 span { background: linear-gradient(135deg, var(--primary-light), var(--success)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .hero p { font-size: 18px; color: var(--text2); margin-bottom: 32px; max-width: 600px; margin-left: auto; margin-right: auto; }
+    .hero-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn { display: inline-block; padding: 14px 32px; border-radius: var(--radius); font-size: 16px; font-weight: 600; text-decoration: none; transition: all 0.2s; cursor: pointer; border: none; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+    .btn-secondary { background: var(--bg2); color: var(--text); border: 1px solid var(--bg3); }
+    .btn-secondary:hover { border-color: var(--primary); }
+    .btn-large { padding: 16px 40px; font-size: 18px; }
+
+    /* Stats */
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; max-width: 700px; margin: 0 auto 80px; padding: 0 24px; }
+    .stat-card { background: var(--bg2); border-radius: var(--radius); padding: 24px; text-align: center; border: 1px solid var(--bg3); }
+    .stat-value { font-size: 28px; font-weight: 800; color: var(--primary-light); }
+    .stat-label { font-size: 13px; color: var(--text3); margin-top: 4px; }
+
+    /* Features */
+    .features { padding: 80px 24px; }
+    .features h2 { text-align: center; font-size: 32px; margin-bottom: 48px; }
+    .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; max-width: 1000px; margin: 0 auto; }
+    .feature-card { background: var(--bg2); border-radius: var(--radius); padding: 28px; border: 1px solid var(--bg3); transition: border-color 0.2s; }
+    .feature-card:hover { border-color: var(--primary); }
+    .feature-icon { font-size: 32px; margin-bottom: 12px; }
+    .feature-card h3 { font-size: 18px; margin-bottom: 8px; }
+    .feature-card p { font-size: 14px; color: var(--text2); line-height: 1.6; }
+
+    /* How it works */
+    .how-it-works { padding: 80px 24px; background: var(--bg2); }
+    .how-it-works h2 { text-align: center; font-size: 32px; margin-bottom: 48px; }
+    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; max-width: 900px; margin: 0 auto; }
+    .step { text-align: center; }
+    .step-num { width: 48px; height: 48px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; margin: 0 auto 16px; }
+    .step h3 { font-size: 16px; margin-bottom: 6px; }
+    .step p { font-size: 14px; color: var(--text2); }
+
+    /* Pricing */
+    .pricing { padding: 80px 24px; }
+    .pricing h2 { text-align: center; font-size: 32px; margin-bottom: 48px; }
+    .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; max-width: 800px; margin: 0 auto; }
+    .pricing-card { background: var(--bg2); border-radius: var(--radius); padding: 24px; border: 1px solid var(--bg3); }
+    .pricing-card h3 { font-size: 15px; color: var(--text2); margin-bottom: 4px; }
+    .pricing-card .price { font-size: 24px; font-weight: 700; }
+    .pricing-card .price.free { color: var(--success); }
+    .pricing-card .price.fee { color: var(--text); }
+
+    /* CTA */
+    .cta { text-align: center; padding: 80px 24px; }
+    .cta h2 { font-size: 32px; margin-bottom: 16px; }
+    .cta p { color: var(--text2); font-size: 16px; margin-bottom: 32px; }
+
+    /* Footer */
+    footer { text-align: center; padding: 40px 24px; border-top: 1px solid var(--bg3); }
+    footer .footer-links { display: flex; justify-content: center; gap: 24px; margin-bottom: 16px; flex-wrap: wrap; }
+    footer a { color: var(--text3); text-decoration: none; font-size: 13px; }
+    footer a:hover { color: var(--text); }
+    footer .copy { color: var(--text3); font-size: 12px; }
+
+    @media (max-width: 600px) {
+      .hero { padding: 60px 16px; }
+      .stats { grid-template-columns: 1fr; max-width: 300px; }
+      nav .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="logo"><img src="/img/logo-icon.svg" alt="" /> BradPay</div>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#pricing">Pricing</a>
+      <a href="/developers.html">API</a>
+      <a href="/agent.html">Agents</a>
+      <a href="/app" class="btn btn-primary" style="padding:8px 20px;font-size:13px;">Launch App</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <h1>The Financial Engine<br>of the <span>Bradverse</span></h1>
+    <p>Send KES instantly, deposit via M-PESA, trade on the built-in exchange, and track every transaction on the blockchain.</p>
+    <div class="hero-buttons">
+      <a href="/app" class="btn btn-primary btn-large">Launch BradPay</a>
+      <a href="#features" class="btn btn-secondary btn-large">Learn More</a>
+    </div>
+  </section>
+
+  <div class="stats">
+    <div class="stat-card">
+      <div class="stat-value" id="stat-blocks">0</div>
+      <div class="stat-label">Blocks Mined</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-uptime">99.9%</div>
+      <div class="stat-label">Uptime</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">KES</div>
+      <div class="stat-label">Real Currency</div>
+    </div>
+  </div>
+
+  <section class="features" id="features">
+    <h2>Everything you need</h2>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon">💸</div>
+        <h3>Send & Receive KES</h3>
+        <p>Peer-to-peer transfers in real Kenyan Shillings. Send by email, phone, or UID. Instant settlement.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📲</div>
+        <h3>M-PESA Integration</h3>
+        <p>Deposit via STK Push and withdraw to M-PESA. Real KES in, real KES out. No tokens, no crypto.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <h3>BradTrade Exchange</h3>
+        <p>P2P order book for KES trading. Place buy/sell orders with automatic matching. Built-in exchange.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⛓️</div>
+        <h3>BradLedger Blockchain</h3>
+        <p>Every transaction recorded on a SHA-256 proof-of-work blockchain. Fully verifiable and transparent.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🏪</div>
+        <h3>Agent Network</h3>
+        <p>Cash-in and cash-out through local agents. Register as an agent and earn commissions.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📱</div>
+        <h3>BradUSSD</h3>
+        <p>Access your wallet from any phone using USSD codes. No smartphone or internet required.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="how-it-works">
+    <h2>How it works</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>Create an account</h3>
+        <p>Sign up with email and set a secure PIN. Takes 30 seconds.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>Add money</h3>
+        <p>Deposit via M-PESA STK Push. Funds appear instantly in your wallet.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>Send, trade, grow</h3>
+        <p>Send KES to anyone, trade on the exchange, or cash out anytime.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <h3>Track everything</h3>
+        <p>Every transaction is on the BradLedger blockchain. Transparent and auditable.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="pricing" id="pricing">
+    <h2>Transparent pricing</h2>
+    <div class="pricing-grid" id="pricing-grid">
+      <div class="pricing-card">
+        <h3>P2P Transfer</h3>
+        <div class="price free">Free</div>
+      </div>
+      <div class="pricing-card">
+        <h3>M-PESA Deposit</h3>
+        <div class="price free">Free</div>
+      </div>
+      <div class="pricing-card">
+        <h3>M-PESA Withdrawal</h3>
+        <div class="price fee" id="pricing-withdrawal">1%</div>
+      </div>
+      <div class="pricing-card">
+        <h3>Agent Commission</h3>
+        <div class="price fee">1%</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <h2>Ready to get started?</h2>
+    <p>Join the Bradverse. Real KES, real transactions, real freedom.</p>
+    <a href="/app" class="btn btn-primary btn-large">Launch BradPay →</a>
+  </section>
+
+  <footer>
+    <div class="footer-links">
+      <a href="/app">App</a>
+      <a href="/agent.html">Agent Portal</a>
+      <a href="/developers.html">API Docs</a>
+      <a href="/terms.html">Terms</a>
+      <a href="/privacy.html">Privacy</a>
+    </div>
+    <div class="copy">© 2026 BradPay. Built on the Bradverse.</div>
+  </footer>
+
+  <script>
+    fetch("/api/ledger/status").then(r => r.json()).then(d => {
+      document.getElementById("stat-blocks").textContent = d.blocks || 0;
+    }).catch(() => {});
+    fetch("/api/tariffs").then(r => r.json()).then(d => {
+      if (d.tariffs) {
+        const withdrawal = d.tariffs.find(t => t.type === "withdrawal" && t.percentage === 100);
+        if (withdrawal) document.getElementById("pricing-withdrawal").textContent = (withdrawal.percentage / 100) + "%";
+      }
+    }).catch(() => {});
+  </script>
+<script>
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+  }
+</script>
+</body>
+</html>
