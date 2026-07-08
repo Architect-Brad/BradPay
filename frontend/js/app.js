@@ -75,6 +75,10 @@ registerScreen("ledger", $("ledger-screen"));
 registerScreen("trade", $("trade-screen"));
 registerScreen("security", $("security-screen"));
 
+function icon(name, size = 24) {
+  return `<svg class="svg-icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="/img/icons.svg#icon-${name}"/></svg>`;
+}
+
 function showToast(message, type = "info") {
   const container = $("toast-container");
   const toast = document.createElement("div");
@@ -121,7 +125,7 @@ async function refreshDashboard() {
     if (loading) loading.style.display = "none";
 
     if (txs.length === 0) {
-      list.innerHTML = '<div class="tx-empty"><div class="icon">📭</div><div>No transactions yet</div><div style="font-size:12px;color:var(--text3)">Send or receive to get started</div></div>';
+      list.innerHTML = `<div class="tx-empty"><div class="icon">${icon("empty", 48)}</div><div>No transactions yet</div><div style="font-size:12px;color:var(--text3)">Send or receive to get started</div></div>`;
       return;
     }
 
@@ -228,7 +232,7 @@ async function refreshLedger() {
     if (loading) loading.style.display = "none";
 
     if (chain.length === 0) {
-      list.innerHTML = '<div class="tx-empty"><div class="icon">⛓️</div><div>No blocks yet</div></div>';
+      list.innerHTML = `<div class="tx-empty"><div class="icon">${icon("blocks", 48)}</div><div>No blocks yet</div></div>`;
       return;
     }
 
@@ -271,7 +275,7 @@ async function refreshLedger() {
   } catch (e) {
     console.error("Ledger refresh failed:", e);
     if (loading) loading.style.display = "none";
-    list.innerHTML = '<div class="tx-empty"><div class="icon">⚠️</div><div>Failed to load ledger</div><div style="font-size:12px;color:var(--text3)">Check connection</div></div>';
+    list.innerHTML = `<div class="tx-empty"><div class="icon">${icon("warning", 48)}</div><div>Failed to load ledger</div><div style="font-size:12px;color:var(--text3)">Check connection</div></div>`;
   }
 }
 
@@ -336,11 +340,13 @@ async function handleRegister() {
 
   if (!isGoogleAuth) {
     try {
+      if (!authFns) { throw new Error("Auth not initialized"); }
       const { createUserWithEmailAndPassword } = authFns;
       await createUserWithEmailAndPassword(auth, email, password);
     } catch (e) {
       const msg = e.code === "auth/email-already-in-use" ? "Email already in use" :
                   e.code === "auth/weak-password" ? "Password too weak (min 6 chars)" :
+                  e.code === "auth/unauthorized-domain" ? "This domain is not authorized for sign-in. Contact support." :
                   e.message || "Account creation failed";
       $("register-error").textContent = msg;
       $("register-error").style.display = "block";
@@ -349,24 +355,27 @@ async function handleRegister() {
     }
   }
 
-  // Auth state change will fire and init() will call checkRegistration()
-  // Wait a tick for the token to be set, then register the wallet
-  setTimeout(async () => {
-    try {
-      const result = await registerUser(pin, name, phone || undefined);
-      if (result.error) {
-        showToast(result.error, "error");
-        setLoading($("register-submit"), false);
-        return;
-      }
-      showToast("Wallet created!", "success");
-      showScreen("dashboard");
-    } catch (e) {
-      showToast("Registration failed", "error");
-    } finally {
+  // Wait for idToken to be available (handleUser sets it asynchronously)
+  for (let i = 0; i < 50; i++) {
+    const token = getIdToken();
+    if (token) break;
+    await new Promise(r => setTimeout(r, 100));
+  }
+
+  try {
+    const result = await registerUser(pin, name, phone || undefined);
+    if (result.error) {
+      showToast(result.error, "error");
       setLoading($("register-submit"), false);
+      return;
     }
-  }, isGoogleAuth ? 200 : 500);
+    showToast("Wallet created!", "success");
+    showScreen("dashboard");
+  } catch (e) {
+    showToast("Registration failed", "error");
+  } finally {
+    setLoading($("register-submit"), false);
+  }
 }
 
 // ── Send / Recipient Lookup ──
@@ -630,7 +639,12 @@ document.addEventListener("DOMContentLoaded", () => {
   $("auth-password").onkeydown = (e) => { if (e.key === "Enter") $("auth-submit").click(); };
 
   $("register-submit").onclick = () => handleRegister();
+  $("reg-email").onkeydown = (e) => { if (e.key === "Enter") $("register-submit").click(); };
   $("reg-password").onkeydown = (e) => { if (e.key === "Enter") $("register-submit").click(); };
+  $("reg-name").onkeydown = (e) => { if (e.key === "Enter") $("register-submit").click(); };
+  $("reg-phone").onkeydown = (e) => { if (e.key === "Enter") $("register-submit").click(); };
+  $("reg-pin").onkeydown = (e) => { if (e.key === "Enter") $("register-submit").click(); };
+  $("reg-pin-confirm").onkeydown = (e) => { if (e.key === "Enter") $("register-submit").click(); };
 
   // Google OAuth
   async function handleGoogleSignIn(buttonId) {

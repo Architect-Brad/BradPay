@@ -6,6 +6,10 @@ const $ = (id) => document.getElementById(id);
 
 let currentOrderType = "buy";
 
+function icon(name, size = 24) {
+  return `<svg class="svg-icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="/img/icons.svg#icon-${name}"/></svg>`;
+}
+
 function showToast(message, type = "info") {
   const container = document.getElementById("toast-container");
   const toast = document.createElement("div");
@@ -198,7 +202,7 @@ async function refreshMyOrders() {
     if (loading) loading.style.display = "none";
 
     if (orders.length === 0) {
-      container.innerHTML = '<div class="tx-empty"><div class="icon">📋</div><div>No orders yet</div></div>';
+      container.innerHTML = `<div class="tx-empty"><div class="icon">${icon("orders", 48)}</div><div>No orders yet</div></div>`;
       return;
     }
 
@@ -241,7 +245,7 @@ async function refreshMyOrders() {
     });
   } catch {
     if (loading) loading.style.display = "none";
-    container.innerHTML = '<div class="tx-empty"><div class="icon">⚠️</div><div>Failed to load orders</div></div>';
+    container.innerHTML = `<div class="tx-empty"><div class="icon">${icon("warning", 48)}</div><div>Failed to load orders</div></div>`;
   }
 }
 
@@ -261,7 +265,7 @@ async function refreshTradeHistory() {
     if (loading) loading.style.display = "none";
 
     if (trades.length === 0) {
-      container.innerHTML = '<div class="tx-empty"><div class="icon">📊</div><div>No trades yet</div></div>';
+      container.innerHTML = `<div class="tx-empty"><div class="icon">${icon("trade", 48)}</div><div>No trades yet</div></div>`;
       return;
     }
 
@@ -282,6 +286,6 @@ async function refreshTradeHistory() {
     }).join("");
   } catch {
     if (loading) loading.style.display = "none";
-    container.innerHTML = '<div class="tx-empty"><div class="icon">⚠️</div><div>Failed to load trades</div></div>';
+    container.innerHTML = `<div class="tx-empty"><div class="icon">${icon("warning", 48)}</div><div>Failed to load trades</div></div>`;
   }
 }

@@ -375,5 +375,5 @@ label { font-size: 14px; font-weight: 500; color: var(--text2); margin-bottom: -
   padding: 6px 16px; text-align: center; position: fixed; top: 0; left: 0; right: 0;
   z-index: 999;
 }
-#offline-banner::before { content: "📡"; }
+#offline-banner svg { flex-shrink: 0; }
 body.bradpay-offline #app { padding-top: 34px; }

@@ -1,4 +1,4 @@
-BradPay™: The Financial Engine of the Bradverse
+BradPay™: The Financial Engine of the BradVerse
 ​Core Vision: To build a self-contained, offline-first, and highly secure digital financial ecosystem that renders legacy mobile money services obsolete. BradPay™ is not just an app; it is a new architecture for money, designed to be reliable, transparent, and accessible to everyone, everywhere.
 ​1. The Five Pillars of the Ecosystem
 ​Every component is a critical pillar designed to work together to form a cohesive, unstoppable financial machine.

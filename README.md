@@ -1,4 +1,4 @@
-# BradPay — The Financial Engine of the Bradverse
+# BradPay — The Financial Engine of the BradVerse
 
 Kenyan mobile wallet (KES) with M-PESA integration, P2P transfers, blockchain ledger, and a built-in exchange.
 

@@ -1,7 +1,7 @@
 {
   "name": "BradPay",
   "short_name": "BradPay",
-  "description": "BradPay - The Financial Engine of the Bradverse",
+  "description": "BradPay - The Financial Engine of the BradVerse",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",
