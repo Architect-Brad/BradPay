@@ -555,6 +555,21 @@ async function renderQR() {
   }
 }
 
+// ── Ripple effect ──
+document.addEventListener("pointerdown", (e) => {
+  const btn = e.target.closest(".btn");
+  if (!btn || btn.disabled) return;
+  const rect = btn.getBoundingClientRect();
+  const ripple = document.createElement("span");
+  ripple.className = "ripple";
+  const size = Math.max(rect.width, rect.height);
+  ripple.style.width = ripple.style.height = size + "px";
+  ripple.style.left = (e.clientX - rect.left - size / 2) + "px";
+  ripple.style.top = (e.clientY - rect.top - size / 2) + "px";
+  btn.appendChild(ripple);
+  ripple.addEventListener("animationend", () => ripple.remove());
+});
+
 // ── Init ──
 async function init() {
   const fns = await initAuth(app);
@@ -607,6 +622,10 @@ async function init() {
       showScreen("auth");
     }
   });
+
+  // Hide splash screen
+  const splash = document.getElementById("splash-screen");
+  if (splash) { splash.classList.add("hide"); setTimeout(() => splash.remove(), 500); }
 }
 
 // ── Event Bindings ──
