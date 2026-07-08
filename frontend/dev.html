@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>Dev Console — BradPay</title>
+  <link rel="icon" type="image/svg+xml" href="/img/favicon.svg" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    body { padding: 0; }
+    .dev-wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
+
+    .dev-header { display: flex; align-items: center; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
+    .dev-avatar { width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--success)); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 800; color: #fff; flex-shrink: 0; }
+    .dev-info { flex: 1; }
+    .dev-info h1 { font-size: 24px; font-weight: 800; margin-bottom: 2px; }
+    .dev-info .tagline { color: var(--text2); font-size: 14px; }
+    .dev-links { display: flex; gap: 12px; flex-wrap: wrap; }
+    .dev-links a { color: var(--text2); text-decoration: none; font-size: 13px; display: flex; align-items: center; gap: 4px; padding: 6px 12px; background: var(--bg2); border-radius: var(--radius-sm); border: 1px solid var(--bg3); transition: all 0.2s; }
+    .dev-links a:hover { border-color: var(--primary); color: var(--text); }
+
+    .section { margin-bottom: 32px; }
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .section-header h2 { font-size: 18px; font-weight: 700; }
+    .section-header .badge { font-size: 11px; background: var(--bg3); color: var(--text2); padding: 2px 10px; border-radius: 20px; }
+
+    .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .stat-card { background: var(--bg2); border-radius: var(--radius); padding: 20px; border: 1px solid var(--bg3); text-align: center; }
+    .stat-card .val { font-size: 28px; font-weight: 800; color: var(--primary-light); }
+    .stat-card .val.success { color: var(--success); }
+    .stat-card .val.danger { color: var(--danger); }
+    .stat-card .lbl { font-size: 12px; color: var(--text3); margin-top: 4px; }
+
+    .endpoint-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+    .endpoint-item { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--bg2); border-radius: var(--radius-sm); border: 1px solid var(--bg3); cursor: pointer; transition: all 0.15s; font-size: 13px; }
+    .endpoint-item:hover { border-color: var(--primary); }
+    .endpoint-item .method { font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+    .endpoint-item .method.get { background: rgba(34,197,94,0.15); color: var(--success); }
+    .endpoint-item .method.post { background: rgba(59,130,246,0.15); color: var(--primary-light); }
+    .endpoint-item .path { font-family: 'Courier New', monospace; color: var(--text2); font-size: 12px; word-break: break-all; }
+
+    .sandbox { background: var(--bg2); border-radius: var(--radius); border: 1px solid var(--bg3); overflow: hidden; }
+    .sandbox-row { display: flex; gap: 8px; padding: 16px; border-bottom: 1px solid var(--bg3); align-items: center; flex-wrap: wrap; }
+    .sandbox-row:last-child { border-bottom: none; }
+    .sandbox-row label { font-size: 13px; color: var(--text2); flex-shrink: 0; min-width: 70px; }
+    .sandbox-row input, .sandbox-row select { flex: 1; min-width: 120px; padding: 10px 12px; font-size: 14px; }
+    .sandbox-row .btn { flex-shrink: 0; }
+    .sandbox-response { padding: 16px; background: var(--bg); border-top: 1px solid var(--bg3); }
+    .sandbox-response h4 { font-size: 12px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .sandbox-response pre { font-family: 'Courier New', monospace; font-size: 12px; color: var(--text); white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto; line-height: 1.5; }
+    .sandbox-response .status-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; margin-bottom: 8px; }
+    .sandbox-response .status-badge.ok { background: rgba(34,197,94,0.15); color: var(--success); }
+    .sandbox-response .status-badge.err { background: rgba(239,68,68,0.15); color: var(--danger); }
+    .sandbox-response .status-badge.pending { background: rgba(245,158,11,0.15); color: var(--warning); }
+
+    .log-list { display: flex; flex-direction: column; gap: 4px; max-height: 300px; overflow-y: auto; }
+    .log-entry { padding: 8px 12px; background: var(--bg); border-radius: 4px; font-family: 'Courier New', monospace; font-size: 12px; color: var(--text2); display: flex; gap: 8px; align-items: flex-start; }
+    .log-entry .time { color: var(--text3); flex-shrink: 0; font-size: 11px; }
+    .log-entry .level { font-weight: 700; flex-shrink: 0; font-size: 11px; width: 40px; }
+    .log-entry .level.info { color: var(--primary-light); }
+    .log-entry .level.ok { color: var(--success); }
+    .log-entry .level.err { color: var(--danger); }
+    .log-entry .level.warn { color: var(--warning); }
+    .log-entry .msg { word-break: break-all; }
+
+    .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 4px 10px; border-radius: 20px; font-weight: 500; }
+    .badge-green { background: rgba(34,197,94,0.15); color: var(--success); }
+    .badge-yellow { background: rgba(245,158,11,0.15); color: var(--warning); }
+
+    @media (max-width: 600px) {
+      .dev-wrap { padding: 16px; }
+      .stats-row { grid-template-columns: 1fr 1fr; }
+      .endpoint-grid { grid-template-columns: 1fr; }
+      .sandbox-row { flex-direction: column; align-items: stretch; }
+      .sandbox-row label { min-width: auto; }
+    }
+
+    #response-area .json-string { color: var(--success); }
+    #response-area .json-number { color: var(--primary-light); }
+    #response-area .json-null { color: var(--text3); }
+    #response-area .json-key { color: var(--warning); }
+    #response-area .json-bool { color: var(--danger); }
+  </style>
+</head>
+<body>
+  <div class="dev-wrap">
+
+    <!-- Header -->
+    <div class="dev-header">
+      <div class="dev-avatar">AB</div>
+      <div class="dev-info">
+        <h1>Architect-Brad</h1>
+        <div class="tagline">Founder & Developer — BradVerse Ecosystem</div>
+      </div>
+      <div class="dev-links">
+        <a href="https://github.com/Architect-Brad" target="_blank">GitHub</a>
+        <a href="/app">BradPay</a>
+        <a href="/">Landing</a>
+        <a href="/api" onclick="event.preventDefault();testEndpoint('GET','/api');">API Root</a>
+      </div>
+    </div>
+
+    <!-- System Status -->
+    <div class="section">
+      <div class="section-header">
+        <h2>System Health</h2>
+        <span id="health-badge" class="badge badge-yellow">Checking...</span>
+      </div>
+      <div class="stats-row" id="system-stats">
+        <div class="stat-card"><div class="val" id="stat-blocks">—</div><div class="lbl">Blocks Mined</div></div>
+        <div class="stat-card"><div class="val" id="stat-users">—</div><div class="lbl">Users</div></div>
+        <div class="stat-card"><div class="val" id="stat-txs">—</div><div class="lbl">Transactions</div></div>
+        <div class="stat-card"><div class="val" id="stat-ledger-status">—</div><div class="lbl">Ledger Status</div></div>
+      </div>
+    </div>
+
+    <!-- API Sandbox -->
+    <div class="section">
+      <div class="section-header">
+        <h2>API Sandbox</h2>
+        <span class="badge badge-green">Live</span>
+      </div>
+
+      <!-- Quick Endpoints -->
+      <div class="endpoint-grid" id="quick-endpoints">
+        <div class="endpoint-item" data-method="GET" data-path="/api/ledger/status"><span class="method get">GET</span><span class="path">/api/ledger/status</span></div>
+        <div class="endpoint-item" data-method="GET" data-path="/api/health"><span class="method get">GET</span><span class="path">/api/health</span></div>
+        <div class="endpoint-item" data-method="GET" data-path="/api/ledger/blocks?limit=5"><span class="method get">GET</span><span class="path">/api/ledger/blocks</span></div>
+        <div class="endpoint-item" data-method="GET" data-path="/api/me"><span class="method get">GET</span><span class="path">/api/me</span></div>
+        <div class="endpoint-item" data-method="GET" data-path="/api/tariffs"><span class="method get">GET</span><span class="path">/api/tariffs</span></div>
+        <div class="endpoint-item" data-method="POST" data-path="/api/ledger/mine"><span class="method post">POST</span><span class="path">/api/ledger/mine</span></div>
+      </div>
+
+      <!-- Custom Request Builder -->
+      <div class="sandbox" id="sandbox">
+        <div class="sandbox-row">
+          <label>Method</label>
+          <select id="sb-method">
+            <option>GET</option>
+            <option>POST</option>
+          </select>
+          <label>Path</label>
+          <input id="sb-path" type="text" placeholder="/api/ledger/status" value="/api/ledger/status" />
+          <button class="btn btn-primary btn-sm" id="sb-send">Send</button>
+        </div>
+        <div class="sandbox-row" id="sb-body-row" style="display:none;">
+          <label>Body</label>
+          <input id="sb-body" type="text" placeholder='{"key":"value"}' />
+        </div>
+        <div class="sandbox-response" id="sandbox-response">
+          <h4>Response</h4>
+          <div id="response-status"></div>
+          <pre id="response-body">Click "Send" or a quick endpoint to test</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activity Log -->
+    <div class="section">
+      <div class="section-header">
+        <h2>Activity Log</h2>
+        <button class="btn btn-ghost btn-sm" onclick="clearLog()">Clear</button>
+      </div>
+      <div class="log-list" id="log-list">
+        <div class="log-entry"><span class="time">—</span><span class="level info">INFO</span><span class="msg">Dev console ready</span></div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="global-footer">
+      <a href="/app">BradPay</a> · <a href="/">Landing</a> · <a href="https://github.com/Architect-Brad">GitHub</a><br/>
+      Built on the BradVerse · © 2026
+    </div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const log = $("log-list");
+    const resStatus = $("response-status");
+    const resBody = $("response-body");
+
+    function addLog(level, msg) {
+      const t = new Date().toLocaleTimeString();
+      const el = document.createElement("div");
+      el.className = "log-entry";
+      el.innerHTML = `<span class="time">${t}</span><span class="level ${level}">${level.toUpperCase()}</span><span class="msg">${msg}</span>`;
+      log.insertBefore(el, log.firstChild);
+      while (log.children.length > 200) log.removeChild(log.lastChild);
+    }
+
+    function clearLog() { log.innerHTML = ""; addLog("info", "Log cleared"); }
+
+    function syntaxHighlight(json) {
+      return json.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"([^"]+)":/g,'<span class="json-key">"$1"</span>:')
+        .replace(/"([^"]+)"(?=\s*[,}\]])/g,'<span class="json-string">"$1"</span>')
+        .replace(/\b(\d+\.?\d*)\b/g,'<span class="json-number">$1</span>')
+        .replace(/\b(true|false)\b/g,'<span class="json-bool">$1</span>')
+        .replace(/\bnull\b/g,'<span class="json-null">null</span>');
+    }
+
+    async function testEndpoint(method, path, body) {
+      addLog("info", `${method} ${path}`);
+      resStatus.innerHTML = `<span class="status-badge pending">⏳ Pending</span>`;
+      resBody.textContent = "Waiting for response...";
+      try {
+        const opts = { method, headers: {} };
+        if (body) {
+          opts.headers["Content-Type"] = "application/json";
+          opts.body = JSON.stringify(body);
+        }
+        const start = performance.now();
+        const r = await fetch(path, opts);
+        const ms = Math.round(performance.now() - start);
+        const contentType = r.headers.get("content-type") || "";
+        let data;
+        if (contentType.includes("application/json")) {
+          data = await r.json();
+        } else {
+          data = await r.text();
+        }
+        const ok = r.ok ? "ok" : "err";
+        resStatus.innerHTML = `<span class="status-badge ${ok}">${r.status} ${r.statusText} · ${ms}ms</span>`;
+        if (typeof data === "object") {
+          resBody.innerHTML = syntaxHighlight(JSON.stringify(data, null, 2));
+        } else {
+          resBody.textContent = data;
+        }
+        addLog(ok, `${r.status} ${path} (${ms}ms)`);
+      } catch (e) {
+        resStatus.innerHTML = `<span class="status-badge err">Error</span>`;
+        resBody.textContent = e.message;
+        addLog("err", `${path} — ${e.message}`);
+      }
+    }
+
+    // Sandbox send
+    $("sb-send").onclick = () => {
+      const method = $("sb-method").value;
+      const path = $("sb-path").value.trim();
+      let body = null;
+      if (method === "POST") {
+        try { body = JSON.parse($("sb-body").value || "{}"); } catch (e) { addLog("err", "Invalid JSON body"); return; }
+      }
+      testEndpoint(method, path, body);
+    };
+
+    // Show body input for POST
+    $("sb-method").onchange = () => {
+      $("sb-body-row").style.display = $("sb-method").value === "POST" ? "flex" : "none";
+    };
+
+    // Quick endpoints
+    document.querySelectorAll(".endpoint-item").forEach(el => {
+      el.onclick = () => {
+        const method = el.dataset.method;
+        const path = el.dataset.path;
+        $("sb-method").value = method;
+        $("sb-path").value = path;
+        if (method === "POST") {
+          $("sb-body-row").style.display = "flex";
+          $("sb-body").value = '{}';
+        } else {
+          $("sb-body-row").style.display = "none";
+        }
+        testEndpoint(method, path, method === "POST" ? {} : undefined);
+      };
+    });
+
+    // Enter to send
+    $("sb-path").onkeydown = e => { if (e.key === "Enter") $("sb-send").click(); };
+    $("sb-body").onkeydown = e => { if (e.key === "Enter") $("sb-send").click(); };
+
+    // ── System Status ──
+    async function refreshStats() {
+      try {
+        const [ledger, health, me] = await Promise.allSettled([
+          fetch("/api/ledger/status").then(r => r.json()),
+          fetch("/api/health").then(r => r.json()),
+          fetch("/api/me").then(r => r.json()),
+        ]);
+        if (ledger.status === "fulfilled") {
+          $("stat-blocks").textContent = ledger.value.blocks ?? "—";
+          $("stat-ledger-status").textContent = ledger.value.valid === false ? "Invalid" : ledger.value.blocks > 0 ? "Valid" : "Empty";
+          $("stat-ledger-status").style.color = ledger.value.valid === false ? "var(--danger)" : "var(--success)";
+        }
+        if (health.status === "fulfilled") {
+          $("stat-users").textContent = health.value.users ?? "—";
+          $("stat-txs").textContent = health.value.transactions ?? "—";
+          const ok = health.value.status === "ok";
+          $("health-badge").textContent = ok ? "Healthy" : "Degraded";
+          $("health-badge").className = "badge " + (ok ? "badge-green" : "badge-yellow");
+        }
+        if (me.status === "fulfilled" && me.value.uid) {
+          addLog("ok", "Authenticated as " + (me.value.name || me.value.email || me.value.uid));
+        }
+        addLog("info", "System stats refreshed");
+      } catch (e) {
+        addLog("err", "Failed to fetch system stats");
+      }
+    }
+
+    refreshStats();
+    setInterval(refreshStats, 15000);
+
+    // Service worker
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+    }
+  </script>
+</body>
+</html>

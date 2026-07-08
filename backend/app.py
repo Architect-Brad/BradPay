@@ -82,6 +82,10 @@ def create_app():
     def app_spa():
         return send_from_directory(frontend_path, "index.html")
 
+    @app.route("/dev")
+    def dev_console():
+        return send_from_directory(frontend_path, "dev.html")
+
     @app.route("/<path:path>")
     def static_files(path):
         return send_from_directory(frontend_path, path)
