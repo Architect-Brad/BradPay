@@ -76,11 +76,11 @@ def create_app():
 
     @app.route("/")
     def index():
-        return send_from_directory(frontend_path, "frontend/landing.html")
+        return send_from_directory(frontend_path, "landing.html")
 
     @app.route("/app")
     def app_spa():
-        return send_from_directory(frontend_path, "frontend/index.html")
+        return send_from_directory(frontend_path, "index.html")
 
     @app.route("/<path:path>")
     def static_files(path):
