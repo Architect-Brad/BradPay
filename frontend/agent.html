@@ -2,372 +2,115 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0f172a" />
-  <title>BradPay Agent Portal</title>
-  <link rel="stylesheet" href="/css/style.css" />
+  <title>Agent Portal — BradPay</title>
+  <link rel="icon" type="image/svg+xml" href="/img/favicon.svg" />
   <style>
-    .agent-page { max-width: 720px; margin: 0 auto; padding: 20px; }
-    .agent-page h1 { font-size: 24px; margin-bottom: 4px; }
-    .agent-page .subtitle { color: var(--text3); font-size: 14px; margin-bottom: 24px; }
-    .agent-page .back-link { display: inline-block; margin-bottom: 16px; color: var(--primary); text-decoration: none; font-size: 14px; }
-    .agent-page .back-link:hover { text-decoration: underline; }
-    .card { background: var(--bg2); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; border: 1px solid var(--bg3); }
-    .card h3 { font-size: 16px; margin-bottom: 12px; color: var(--primary-light); }
-    .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 20px; }
-    .stat-box { background: var(--bg2); border-radius: var(--radius-sm); padding: 16px; text-align: center; border: 1px solid var(--bg3); }
-    .stat-value { font-size: 24px; font-weight: 700; color: var(--text); }
-    .stat-label { font-size: 12px; color: var(--text3); margin-top: 4px; }
-    .badge-pending { background: rgba(245,158,11,0.2); color: var(--warning); padding: 2px 8px; border-radius: 4px; font-size: 12px; }
-    .badge-active { background: rgba(34,197,94,0.2); color: var(--success); padding: 2px 8px; border-radius: 4px; font-size: 12px; }
-    .badge-suspended { background: rgba(239,68,68,0.2); color: var(--danger); padding: 2px 8px; border-radius: 4px; font-size: 12px; }
-    .tx-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--bg3); font-size: 14px; }
-    .tx-item:last-child { border: none; }
-    .tx-type { color: var(--text2); }
-    .tx-amount { font-weight: 600; }
-    .tx-amount.positive { color: var(--success); }
-    .tx-amount.negative { color: var(--danger); }
-    .hidden { display: none; }
-    .tab-bar { display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; }
-    .tab { padding: 8px 16px; border-radius: var(--radius-sm); cursor: pointer; font-size: 14px; background: var(--bg2); color: var(--text2); border: 1px solid transparent; }
-    .tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
-    .tab:hover { border-color: var(--primary); }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f172a; --bg2: #1e293b; --bg3: #334155;
+      --primary: #3b82f6; --primary-dark: #2563eb; --primary-light: #60a5fa;
+      --text: #f1f5f9; --text2: #94a3b8; --text3: #64748b;
+      --success: #22c55e; --danger: #ef4444; --warning: #f59e0b;
+      --radius: 12px; --radius-sm: 8px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+    .container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+    nav { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; max-width: 900px; margin: 0 auto; }
+    nav .logo { font-size: 22px; font-weight: 800; display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text); }
+    nav .logo img { height: 32px; }
+    nav .nav-links { display: flex; gap: 24px; align-items: center; }
+    nav a { color: var(--text2); text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    nav a:hover { color: var(--text); }
+    .btn { display: inline-block; padding: 14px 32px; border-radius: var(--radius); font-size: 16px; font-weight: 600; text-decoration: none; transition: all 0.2s; cursor: pointer; border: none; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+    .btn-secondary { background: var(--bg2); color: var(--text); border: 1px solid var(--bg3); }
+    .btn-secondary:hover { border-color: var(--primary); }
+    .hero { padding: 80px 24px; text-align: center; max-width: 700px; margin: 0 auto; }
+    .hero h1 { font-size: clamp(32px, 5vw, 48px); font-weight: 800; line-height: 1.1; margin-bottom: 16px; }
+    .hero h1 span { background: linear-gradient(135deg, var(--primary-light), var(--success)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .hero p { font-size: 17px; color: var(--text2); margin-bottom: 28px; }
+    .section { padding: 60px 24px; }
+    .section h2 { font-size: 28px; font-weight: 700; margin-bottom: 24px; text-align: center; }
+    .section h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; max-width: 800px; margin: 0 auto; }
+    .card { background: var(--bg2); border-radius: var(--radius); padding: 28px; border: 1px solid var(--bg3); transition: border-color 0.2s; }
+    .card:hover { border-color: var(--primary); }
+    .card .price { font-size: 32px; font-weight: 800; color: var(--primary-light); margin: 8px 0; }
+    .card .price-label { font-size: 14px; color: var(--text2); }
+    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 24px; max-width: 700px; margin: 0 auto; }
+    .step { text-align: center; }
+    .step-num { width: 48px; height: 48px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; margin: 0 auto 16px; }
+    footer { text-align: center; padding: 40px 24px; border-top: 1px solid var(--bg3); }
+    footer a { color: var(--text3); text-decoration: none; font-size: 13px; margin: 0 12px; }
+    footer a:hover { color: var(--text); }
+    footer .copy { color: var(--text3); font-size: 12px; margin-top: 16px; }
+    @media (max-width: 600px) { .hero { padding: 60px 16px; } nav .nav-links { display: none; } }
   </style>
 </head>
 <body>
-  <div class="agent-page" id="app">
-    <a href="/" class="back-link">← Back to BradPay</a>
-    <h1>BradPay Agent Portal</h1>
-    <p class="subtitle">Register as an agent to offer cash-in/cash-out services and earn commissions.</p>
-
-    <!-- Auth Section -->
-    <div id="agent-auth">
-      <p style="color:var(--text2);margin-bottom:16px;">Sign in to your BradPay account to access the agent portal.</p>
-      <a href="/" class="btn btn-primary btn-full" style="display:block;text-align:center;text-decoration:none;">Sign In to BradPay</a>
+  <nav>
+    <a href="/" class="logo"><img src="/img/logo-icon.svg" alt="" /> BradPay</a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/app">App</a>
+      <a href="/developers.html">API</a>
     </div>
-
-    <!-- Not Registered Section -->
-    <div id="agent-not-agent" class="hidden">
+  </nav>
+  <section class="hero">
+    <h1>Become a <span>BradPay Agent</span></h1>
+    <p>Earn commissions by helping users deposit and withdraw cash. No capital required — run your agent business from any smartphone.</p>
+    <a href="/app" class="btn btn-primary btn-large">Register as Agent</a>
+  </section>
+  <section class="section">
+    <h2>Commission Structure</h2>
+    <div class="card-grid">
       <div class="card">
-        <h3>Become an Agent</h3>
-        <p style="color:var(--text2);margin-bottom:16px;">Offer cash-in/cash-out services to BradPay users in your area. Earn commissions on every transaction.</p>
-        <div class="form-group">
-          <label>Business Name</label>
-          <input type="text" id="agent-business-name" placeholder="e.g. Mama Mboga Shop" />
-        </div>
-        <div class="form-group">
-          <label>Phone Number (for agent services)</label>
-          <input type="tel" id="agent-phone" placeholder="0712345678" />
-        </div>
-        <div class="form-group">
-          <label>ID Number (optional)</label>
-          <input type="text" id="agent-id" placeholder="National ID number" />
-        </div>
-        <div class="form-group">
-          <label>KRA PIN (optional)</label>
-          <input type="text" id="agent-kra" placeholder="KRA PIN" />
-        </div>
-        <div class="form-group">
-          <label>Location (optional)</label>
-          <input type="text" id="agent-location" placeholder="e.g. Nairobi, CBD" />
-        </div>
-        <button class="btn btn-primary btn-full" id="agent-register-submit">Submit Registration</button>
-        <div id="agent-register-status" style="margin-top:12px;"></div>
+        <h3>Cash-In (Deposit)</h3>
+        <div class="price">0%</div>
+        <div class="price-label">Free for users · You earn a flat fee</div>
       </div>
       <div class="card">
-        <h3>Commission Structure</h3>
-        <div id="agent-tariffs-display">
-          <p style="color:var(--text2);font-size:14px;">Loading tariff rates...</p>
-        </div>
+        <h3>Cash-Out (Withdrawal)</h3>
+        <div class="price">1%</div>
+        <div class="price-label">You earn 1% of withdrawal amount</div>
+      </div>
+      <div class="card">
+        <h3>Referral Bonus</h3>
+        <div class="price">KES 50</div>
+        <div class="price-label">Per new user you onboard</div>
       </div>
     </div>
-
-    <!-- Agent Dashboard -->
-    <div id="agent-dashboard" class="hidden">
-      <div id="agent-status-banner" style="padding:12px;border-radius:8px;margin-bottom:16px;font-size:14px;"></div>
-
-      <div class="stat-grid">
-        <div class="stat-box">
-          <div class="stat-value" id="agent-float">KES 0</div>
-          <div class="stat-label">Float Balance</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-value" id="agent-commission">KES 0</div>
-          <div class="stat-label">Total Commission</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-value" id="agent-status"></div>
-          <div class="stat-label">Status</div>
-        </div>
+  </section>
+  <section class="section" style="background:var(--bg2);">
+    <h2>How It Works</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>Register</h3>
+        <p>Create a BradPay account and apply for agent status.</p>
       </div>
-
-      <div class="tab-bar">
-        <div class="tab active" data-tab="tab-transactions">Transactions</div>
-        <div class="tab" data-tab="tab-topup">Top Up Float</div>
-        <div class="tab" data-tab="tab-cash">Cash In/Out</div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>Get Approved</h3>
+        <p>Verification takes 24 hours. You'll receive a unique agent ID.</p>
       </div>
-
-      <div id="tab-transactions" class="tab-panel">
-        <div class="card">
-          <h3>Recent Activity</h3>
-          <div id="agent-tx-list"><p style="color:var(--text2);font-size:14px;">Loading...</p></div>
-        </div>
-      </div>
-
-      <div id="tab-topup" class="tab-panel hidden">
-        <div class="card">
-          <h3>Top Up Float</h3>
-          <p style="color:var(--text2);font-size:14px;margin-bottom:12px;">Transfer KES from your BradPay wallet to your agent float.</p>
-          <div class="form-group">
-            <label>Amount (KES)</label>
-            <input type="number" id="float-amount" placeholder="e.g. 5000" min="100" step="100" />
-          </div>
-          <button class="btn btn-primary btn-full" id="float-topup-submit">Top Up Float</button>
-          <div id="float-topup-status" style="margin-top:8px;font-size:14px;"></div>
-        </div>
-      </div>
-
-      <div id="tab-cash" class="tab-panel hidden">
-        <div class="card">
-          <h3>Cash-In (Give User Money)</h3>
-          <p style="color:var(--text2);font-size:14px;margin-bottom:12px;">User gives you cash, you credit their BradPay wallet.</p>
-          <div class="form-group">
-            <label>User Phone</label>
-            <input type="tel" id="cashin-phone" placeholder="0712345678" />
-          </div>
-          <div class="form-group">
-            <label>Amount (KES)</label>
-            <input type="number" id="cashin-amount" placeholder="e.g. 1000" min="100" step="100" />
-          </div>
-          <button class="btn btn-success btn-full" id="cashin-submit" style="background:var(--success);color:#fff;border:none;padding:12px;border-radius:8px;font-size:16px;cursor:pointer;">Cash In</button>
-          <div id="cashin-status" style="margin-top:8px;font-size:14px;"></div>
-        </div>
-        <div class="card">
-          <h3>Cash-Out (Collect User Money)</h3>
-          <p style="color:var(--text2);font-size:14px;margin-bottom:12px;">User sends you KES, you give them cash.</p>
-          <div class="form-group">
-            <label>User Phone</label>
-            <input type="tel" id="cashout-phone" placeholder="0712345678" />
-          </div>
-          <div class="form-group">
-            <label>Amount (KES)</label>
-            <input type="number" id="cashout-amount" placeholder="e.g. 1000" min="100" step="100" />
-          </div>
-          <button class="btn btn-danger btn-full" id="cashout-submit" style="background:var(--danger);color:#fff;border:none;padding:12px;border-radius:8px;font-size:16px;cursor:pointer;">Cash Out</button>
-          <div id="cashout-status" style="margin-top:8px;font-size:14px;"></div>
-        </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>Start Earning</h3>
+        <p>Process deposits and withdrawals, earn commissions instantly.</p>
       </div>
     </div>
-  </div>
-
-  <div id="toast-container"></div>
-
-  <script type="importmap">
-  {
-    "imports": {
-      "firebase/app": "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js",
-      "firebase/auth": "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js"
-    }
-  }
-  </script>
-  <script type="module">
-    import { firebaseConfig } from "/js/firebase-config.js";
-    const { initializeApp } = await import("firebase/app");
-    const { getAuth, onAuthStateChanged } = await import("firebase/auth");
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-
-    const $ = (id) => document.getElementById(id);
-    let currentUser = null;
-    let idToken = null;
-
-    function showToast(msg, type = "info") {
-      const c = document.getElementById("toast-container");
-      const t = document.createElement("div");
-      t.className = `toast ${type}`;
-      t.textContent = msg;
-      c.appendChild(t);
-      setTimeout(() => t.remove(), 3500);
-    }
-
-    function setLoading(el, loading) {
-      if (loading) { el.disabled = true; el.dataset.text = el.textContent; el.textContent = "Processing..."; }
-      else { el.disabled = false; el.textContent = el.dataset.text || el.textContent; }
-    }
-
-    function formatKES(cents) {
-      return "KES " + (cents / 100).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    }
-
-    function escapeHtml(s) { if (!s) return ""; const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
-
-    onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        currentUser = user;
-        idToken = await user.getIdToken();
-        $("agent-auth").classList.add("hidden");
-        await loadAgent();
-      } else {
-        $("agent-auth").classList.remove("hidden");
-        $("agent-not-agent").classList.add("hidden");
-        $("agent-dashboard").classList.add("hidden");
-      }
-    });
-
-    async function apiFetch(path, opts = {}) {
-      const resp = await fetch(path, {
-        ...opts,
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}`, ...opts.headers },
-        body: opts.body ? JSON.stringify(opts.body) : undefined,
-      });
-      return resp.json();
-    }
-
-    async function loadAgent() {
-      const data = await apiFetch("/api/agents/profile");
-      if (data.error) {
-        $("agent-not-agent").classList.remove("hidden");
-        $("agent-dashboard").classList.add("hidden");
-        loadTariffs();
-        return;
-      }
-      $("agent-not-agent").classList.add("hidden");
-      $("agent-dashboard").classList.remove("hidden");
-      renderDashboard(data.agent);
-    }
-
-    async function loadTariffs() {
-      const data = await apiFetch("/api/tariffs/agent_commission");
-      const el = $("agent-tariffs-display");
-      if (data.tariffs && data.tariffs.length > 0) {
-        el.innerHTML = data.tariffs.map(t =>
-          `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bg3);font-size:14px;">
-            <span style="color:var(--text2);">${escapeHtml(t.name)}</span>
-            <span>${t.percentage ? (t.percentage / 100) + '%' : ''}${t.flat_fee ? ' KES ' + (t.flat_fee/100).toFixed(2) : ''}</span>
-          </div>`
-        ).join("");
-      } else {
-        el.innerHTML = '<p style="color:var(--text2);font-size:14px;">Standard commission: 1% per transaction</p>';
-      }
-    }
-
-    function renderDashboard(agent) {
-      const banner = $("agent-status-banner");
-      if (agent.status === "pending") {
-        banner.style.background = "rgba(245,158,11,0.1)"; banner.style.color = "var(--warning)";
-        banner.textContent = "Your application is pending review. You will be notified once approved.";
-      } else if (agent.status === "active") {
-        banner.style.background = "rgba(34,197,94,0.1)"; banner.style.color = "var(--success)";
-        banner.textContent = "Agent verified and active. You can now offer cash-in/cash-out services.";
-      } else if (agent.status === "suspended") {
-        banner.style.background = "rgba(239,68,68,0.1)"; banner.style.color = "var(--danger)";
-        banner.textContent = "Your agent account has been suspended. Contact support.";
-      } else {
-        banner.style.display = "none";
-      }
-
-      $("agent-float").textContent = formatKES(agent.float_balance || 0);
-      $("agent-commission").textContent = formatKES(agent.total_commission_earned || 0);
-      $("agent-status").innerHTML = `<span class="badge-${agent.status}">${agent.status}</span>`;
-
-      loadTransactions();
-    }
-
-    async function loadTransactions() {
-      const data = await apiFetch("/api/agents/transactions");
-      const list = $("agent-tx-list");
-      if (!data.transactions || data.transactions.length === 0) {
-        list.innerHTML = '<p style="color:var(--text2);font-size:14px;">No transactions yet.</p>';
-        return;
-      }
-      list.innerHTML = data.transactions.slice(0, 20).map(tx => {
-        const isPositive = tx.type === "float_topup" || tx.type === "commission" || tx.type === "cash_out";
-        return `
-          <div class="tx-item">
-            <div>
-              <div class="tx-type">${tx.type.replace(/_/g, " ").toUpperCase()}</div>
-              <div style="font-size:11px;color:var(--text3);">${tx.created_at ? new Date(tx.created_at).toLocaleDateString() : ""}</div>
-            </div>
-            <div class="tx-amount ${isPositive ? "positive" : "negative"}">${isPositive ? "+" : "-"}${formatKES(tx.amount)}</div>
-          </div>
-        `;
-      }).join("");
-    }
-
-    // Tab switching
-    document.querySelectorAll(".tab").forEach(tab => {
-      tab.onclick = () => {
-        document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-        tab.classList.add("active");
-        document.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
-        document.getElementById(tab.dataset.tab).classList.remove("hidden");
-      };
-    });
-
-    // Register agent
-    $("agent-register-submit").onclick = async () => {
-      const business_name = $("agent-business-name").value.trim();
-      if (!business_name) { showToast("Business name is required", "error"); return; }
-      setLoading($("agent-register-submit"), true);
-      const data = await apiFetch("/api/agents/register", {
-        method: "POST",
-        body: {
-          business_name,
-          contact_phone: $("agent-phone").value.trim(),
-          id_number: $("agent-id").value.trim(),
-          kra_pin: $("agent-kra").value.trim(),
-          location: $("agent-location").value.trim(),
-        },
-      });
-      setLoading($("agent-register-submit"), false);
-      if (data.error) { showToast(data.error, "error"); return; }
-      showToast("Registration submitted for verification!", "success");
-      await loadAgent();
-    };
-
-    // Float top-up
-    $("float-topup-submit").onclick = async () => {
-      const amountStr = $("float-amount").value;
-      if (!amountStr || parseInt(amountStr) < 100) { showToast("Minimum top-up is KES 1.00", "error"); return; }
-      const amount = Math.round(parseFloat(amountStr) * 100);
-      setLoading($("float-topup-submit"), true);
-      const data = await apiFetch("/api/agents/float-topup", { method: "POST", body: { amount } });
-      setLoading($("float-topup-submit"), false);
-      if (data.error) { showToast(data.error, "error"); return; }
-      showToast(`Float topped up by ${formatKES(amount)}`, "success");
-      $("float-amount").value = "";
-      await loadAgent();
-    };
-
-    // Cash-in
-    $("cashin-submit").onclick = async () => {
-      const phone = $("cashin-phone").value.trim();
-      const amountStr = $("cashin-amount").value;
-      if (!phone || !amountStr) { showToast("Phone and amount required", "error"); return; }
-      const amount = Math.round(parseFloat(amountStr) * 100);
-      setLoading($("cashin-submit"), true);
-      const data = await apiFetch("/api/agents/cash-in", { method: "POST", body: { phone, amount } });
-      setLoading($("cashin-submit"), false);
-      if (data.error) { showToast(data.error, "error"); return; }
-      showToast(`Cash-in successful: ${formatKES(amount)}`, "success");
-      $("cashin-phone").value = ""; $("cashin-amount").value = "";
-      await loadAgent();
-    };
-
-    // Cash-out
-    $("cashout-submit").onclick = async () => {
-      const phone = $("cashout-phone").value.trim();
-      const amountStr = $("cashout-amount").value;
-      if (!phone || !amountStr) { showToast("Phone and amount required", "error"); return; }
-      const amount = Math.round(parseFloat(amountStr) * 100);
-      setLoading($("cashout-submit"), true);
-      const data = await apiFetch("/api/agents/cash-out", { method: "POST", body: { phone, amount } });
-      setLoading($("cashout-submit"), false);
-      if (data.error) { showToast(data.error, "error"); return; }
-      showToast(`Cash-out successful: ${formatKES(amount)}`, "success");
-      $("cashout-phone").value = ""; $("cashout-amount").value = "";
-      await loadAgent();
-    };
+  </section>
+  <footer>
+    <a href="/">Home</a> <a href="/app">App</a> <a href="/developers.html">API</a> <a href="/terms.html">Terms</a> <a href="/privacy.html">Privacy</a>
+    <div class="copy">© 2026 BradPay. Built on the BradVerse.</div>
+  </footer>
+  <script>
+    if ("serviceWorker" in navigator) { navigator.serviceWorker.register("/service-worker.js").catch(() => {}); }
   </script>
 </body>
 </html>

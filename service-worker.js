@@ -1,12 +1,13 @@
-const CACHE = "bradpay-v3";
+const CACHE = "bradpay-v4";
 const ASSETS = [
   "/",
   "/index.html",
   "/landing.html",
+  "/dev.html",
+  "/agent.html",
+  "/developers.html",
   "/terms.html",
   "/privacy.html",
-  "/developers.html",
-  "/agent.html",
   "/admin.html",
   "/css/style.css",
   "/js/firebase-config.js",
@@ -21,6 +22,7 @@ const ASSETS = [
   "/img/favicon.svg",
   "/img/logo-icon.svg",
   "/img/logo.svg",
+  "/img/icons.svg",
 ];
 
 self.addEventListener("install", (e) => {

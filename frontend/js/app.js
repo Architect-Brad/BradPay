@@ -555,6 +555,42 @@ async function renderQR() {
   }
 }
 
+// ── PWA Install Prompt ──
+let installPrompt = null;
+const installBanner = document.getElementById("install-banner");
+const installBtn = document.getElementById("install-btn");
+const installDismiss = document.getElementById("install-dismiss");
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  if (installBanner) installBanner.style.display = "flex";
+});
+
+if (installBtn) {
+  installBtn.onclick = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const result = await installPrompt.userChoice;
+    if (result.outcome === "accepted") {
+      if (installBanner) installBanner.style.display = "none";
+    }
+    installPrompt = null;
+  };
+}
+
+if (installDismiss) {
+  installDismiss.onclick = () => {
+    if (installBanner) installBanner.style.display = "none";
+    installPrompt = null;
+  };
+}
+
+window.addEventListener("appinstalled", () => {
+  if (installBanner) installBanner.style.display = "none";
+  installPrompt = null;
+});
+
 // ── Ripple effect ──
 document.addEventListener("pointerdown", (e) => {
   const btn = e.target.closest(".btn");

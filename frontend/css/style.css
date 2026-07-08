@@ -480,6 +480,25 @@ label { font-size: 13px; font-weight: 600; color: var(--text2); letter-spacing: 
 ::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
 
+/* Install Banner */
+#install-banner {
+  display: none; align-items: center; gap: 10px;
+  background: var(--bg-glass); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.06); border-radius: var(--radius);
+  padding: 12px 16px; margin: 0 20px 12px; flex-shrink: 0;
+  box-shadow: var(--shadow); animation: fadeSlideUp 0.4s ease;
+  position: relative;
+}
+#install-banner .install-icon { flex-shrink: 0; }
+#install-banner .install-text { flex: 1; display: flex; flex-direction: column; }
+#install-banner .install-text strong { font-size: 14px; }
+#install-banner .install-text span { font-size: 12px; color: var(--text2); }
+#install-banner #install-btn { flex-shrink: 0; }
+#install-banner #install-dismiss { background: none; border: none; color: var(--text3); font-size: 20px; cursor: pointer; padding: 4px 8px; line-height: 1; border-radius: 4px; transition: all 0.2s; }
+#install-banner #install-dismiss:hover { background: var(--bg-glass); color: var(--text); }
+.btn-ghost-sm { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 18px; padding: 4px 8px; line-height: 1; }
+.btn-ghost-sm:hover { color: var(--text); }
+
 /* Offline Banner */
 #offline-banner {
   display: none; align-items: center; justify-content: center; gap: 8px;
