@@ -108,12 +108,34 @@ function stopPolling() {
   if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
 }
 
+function setUserGreeting(profile) {
+  const user = getCurrentUser();
+  const name =
+    profile?.display_name ||
+    profile?.displayName ||
+    user?.displayName ||
+    user?.email?.split("@")[0] ||
+    "there";
+  const first = String(name).trim().split(/\s+/)[0] || "there";
+  const greetEl = $("dashboard-user-name");
+  if (greetEl) greetEl.textContent = `Hi, ${first}`;
+  const av = $("dashboard-avatar");
+  if (av) av.textContent = first.charAt(0).toUpperCase();
+}
+
 // ── Dashboard ──
 async function refreshDashboard() {
   try {
     const bal = await getBalance();
     currentBalance = bal.balance || 0;
     $("balance-amount").textContent = formatAmount(currentBalance);
+    const sub = $("balance-sub");
+    if (sub) {
+      sub.textContent =
+        currentBalance > 0
+          ? "Wallet ready · Deposit or withdraw via M-PESA anytime"
+          : "Top up with M-PESA to start sending";
+    }
     refreshDaraja();
 
     const txData = await getHistory();
@@ -125,7 +147,16 @@ async function refreshDashboard() {
     if (loading) loading.style.display = "none";
 
     if (txs.length === 0) {
-      list.innerHTML = `<div class="tx-empty"><div class="icon">${icon("empty", 48)}</div><div>No transactions yet</div><div style="font-size:12px;color:var(--text3)">Send or receive to get started</div></div>`;
+      list.innerHTML = `<div class="tx-empty">
+        <div class="icon">${icon("empty", 48)}</div>
+        <div style="font-weight:600;color:var(--text)">No activity yet</div>
+        <div style="font-size:13px;color:var(--text3);max-width:240px;text-align:center;line-height:1.45">
+          Deposit from M-PESA or receive a payment to see history here
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" id="empty-deposit-cta">Deposit now</button>
+      </div>`;
+      const cta = $("empty-deposit-cta");
+      if (cta) cta.onclick = () => showScreen("deposit");
       return;
     }
 
@@ -390,10 +421,10 @@ $("send-recipient").oninput = () => {
     try {
       const result = await lookupUser(val);
       if (result.error) {
-        info.textContent = "❌ User not found";
+        info.textContent = "User not found — check email, phone, or UID";
         info.className = "recipient-info error";
       } else {
-        info.innerHTML = `✅ ${escapeHtml(result.displayName || result.uid)}${result.email ? ` (${escapeHtml(result.email)})` : ""}`;
+        info.innerHTML = `Found: <strong>${escapeHtml(result.displayName || result.uid)}</strong>${result.email ? ` · ${escapeHtml(result.email)}` : ""}`;
         info.className = "recipient-info success";
       }
       info.style.display = "block";
@@ -627,9 +658,7 @@ async function init() {
   });
 
   onAuthChange(({ user, registered }) => {
-    $("dashboard-user-name").textContent = user?.displayName
-      ? `Welcome, ${user.displayName}`
-      : "Welcome";
+    setUserGreeting(user);
 
     const activeId = document.querySelector(".screen.active")?.id;
     if (activeId && activeId !== "auth-screen" && activeId !== "register-screen" && activeId !== "dashboard-screen") {
@@ -727,21 +756,41 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  $("action-send").onclick = () => {
+  function goSend() {
     showScreen("send");
     $("send-recipient").focus();
     $("send-recipient-info").style.display = "none";
-  };
+  }
+  function goDeposit() {
+    showScreen("deposit");
+  }
+
+  $("action-send").onclick = goSend;
+  $("balance-send-btn").onclick = goSend;
   $("action-receive").onclick = () => {
     renderQR();
     showScreen("receive");
   };
-  $("action-deposit").onclick = () => {
-    showScreen("deposit");
-  };
+  $("action-deposit").onclick = goDeposit;
+  $("balance-deposit-btn").onclick = goDeposit;
   $("action-withdraw").onclick = () => {
     showScreen("withdraw");
   };
+
+  // Amount quick-pick chips
+  document.querySelectorAll("#send-amount-chips .chip, #deposit-amount-chips .chip").forEach((chip) => {
+    chip.onclick = () => {
+      const amount = chip.dataset.amount;
+      const parent = chip.closest(".form-screen, .screen");
+      const input = parent?.querySelector("#send-amount, #deposit-amount");
+      if (input && amount) {
+        input.value = amount;
+        input.focus();
+      }
+      chip.parentElement?.querySelectorAll(".chip").forEach((c) => c.classList.remove("active"));
+      chip.classList.add("active");
+    };
+  });
   $("action-ledger").onclick = () => {
     showScreen("ledger");
   };

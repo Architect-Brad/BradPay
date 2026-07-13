@@ -108,12 +108,34 @@ function stopPolling() {
   if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
 }
 
+function setUserGreeting(profile) {
+  const user = getCurrentUser();
+  const name =
+    profile?.display_name ||
+    profile?.displayName ||
+    user?.displayName ||
+    user?.email?.split("@")[0] ||
+    "there";
+  const first = String(name).trim().split(/\s+/)[0] || "there";
+  const greetEl = $("dashboard-user-name");
+  if (greetEl) greetEl.textContent = `Hi, ${first}`;
+  const av = $("dashboard-avatar");
+  if (av) av.textContent = first.charAt(0).toUpperCase();
+}
+
 // ── Dashboard ──
 async function refreshDashboard() {
   try {
     const bal = await getBalance();
     currentBalance = bal.balance || 0;
     $("balance-amount").textContent = formatAmount(currentBalance);
+    const sub = $("balance-sub");
+    if (sub) {
+      sub.textContent =
+        currentBalance > 0
+          ? "Wallet ready · Deposit or withdraw via M-PESA anytime"
+          : "Top up with M-PESA to start sending";
+    }
     refreshDaraja();
 
     const txData = await getHistory();
@@ -125,7 +147,16 @@ async function refreshDashboard() {
     if (loading) loading.style.display = "none";
 
     if (txs.length === 0) {
-      list.innerHTML = `<div class="tx-empty"><div class="icon">${icon("empty", 48)}</div><div>No transactions yet</div><div style="font-size:12px;color:var(--text3)">Send or receive to get started</div></div>`;
+      list.innerHTML = `<div class="tx-empty">
+        <div class="icon">${icon("empty", 48)}</div>
+        <div style="font-weight:600;color:var(--text)">No activity yet</div>
+        <div style="font-size:13px;color:var(--text3);max-width:240px;text-align:center;line-height:1.45">
+          Deposit from M-PESA or receive a payment to see history here
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" id="empty-deposit-cta">Deposit now</button>
+      </div>`;
+      const cta = $("empty-deposit-cta");
+      if (cta) cta.onclick = () => showScreen("deposit");
       return;
     }
 
@@ -390,10 +421,10 @@ $("send-recipient").oninput = () => {
     try {
       const result = await lookupUser(val);
       if (result.error) {
-        info.textContent = "❌ User not found";
+        info.textContent = "User not found — check email, phone, or UID";
         info.className = "recipient-info error";
       } else {
-        info.innerHTML = `✅ ${escapeHtml(result.displayName || result.uid)}${result.email ? ` (${escapeHtml(result.email)})` : ""}`;
+        info.innerHTML = `Found: <strong>${escapeHtml(result.displayName || result.uid)}</strong>${result.email ? ` · ${escapeHtml(result.email)}` : ""}`;
         info.className = "recipient-info success";
       }
       info.style.display = "block";
@@ -555,6 +586,57 @@ async function renderQR() {
   }
 }
 
+// ── PWA Install Prompt ──
+let installPrompt = null;
+const installBanner = document.getElementById("install-banner");
+const installBtn = document.getElementById("install-btn");
+const installDismiss = document.getElementById("install-dismiss");
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  if (installBanner) installBanner.style.display = "flex";
+});
+
+if (installBtn) {
+  installBtn.onclick = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const result = await installPrompt.userChoice;
+    if (result.outcome === "accepted") {
+      if (installBanner) installBanner.style.display = "none";
+    }
+    installPrompt = null;
+  };
+}
+
+if (installDismiss) {
+  installDismiss.onclick = () => {
+    if (installBanner) installBanner.style.display = "none";
+    installPrompt = null;
+  };
+}
+
+window.addEventListener("appinstalled", () => {
+  if (installBanner) installBanner.style.display = "none";
+  installPrompt = null;
+});
+
+// ── Ripple effect ──
+document.addEventListener("pointerdown", (e) => {
+  const btn = e.target.closest(".btn");
+  if (!btn || btn.disabled) return;
+  const rect = btn.getBoundingClientRect();
+  const ripple = document.createElement("span");
+  ripple.className = "ripple";
+  const size = Math.max(rect.width, rect.height);
+  ripple.style.width = ripple.style.height = size + "px";
+  ripple.style.left = (e.clientX - rect.left - size / 2) + "px";
+  ripple.style.top = (e.clientY - rect.top - size / 2) + "px";
+  btn.appendChild(ripple);
+  ripple.addEventListener("animationend", () => ripple.remove());
+});
+
 // ── Init ──
 async function init() {
   const fns = await initAuth(app);
@@ -576,9 +658,7 @@ async function init() {
   });
 
   onAuthChange(({ user, registered }) => {
-    $("dashboard-user-name").textContent = user?.displayName
-      ? `Welcome, ${user.displayName}`
-      : "Welcome";
+    setUserGreeting(user);
 
     const activeId = document.querySelector(".screen.active")?.id;
     if (activeId && activeId !== "auth-screen" && activeId !== "register-screen" && activeId !== "dashboard-screen") {
@@ -607,6 +687,10 @@ async function init() {
       showScreen("auth");
     }
   });
+
+  // Hide splash screen
+  const splash = document.getElementById("splash-screen");
+  if (splash) { splash.classList.add("hide"); setTimeout(() => splash.remove(), 500); }
 }
 
 // ── Event Bindings ──

@@ -1,5 +1,6 @@
 import { getIdToken, getCurrentUser } from "./auth.js";
 import { formatAmount } from "./wallet.js";
+import { queueRequest } from "./sync.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -47,9 +48,11 @@ async function refreshKESBalance() {
       headers: { "Authorization": `Bearer ${token}` },
     });
     const data = await resp.json();
-    const kes = data.kes_balance || 0;
-    $("kes-balance-amount").textContent = `KES ${formatAmount(kes)}`;
-    $("withdraw-kes-balance").textContent = `KES ${formatAmount(kes)}`;
+    const kes = data.kes_balance ?? data.balance ?? 0;
+    const el = $("kes-balance-amount");
+    if (el) el.textContent = `KES ${formatAmount(kes)}`;
+    const w = $("withdraw-kes-balance");
+    if (w) w.textContent = `KES ${formatAmount(kes)}`;
   } catch { /* ignore */ }
 }
 
@@ -75,10 +78,23 @@ function bindDeposit() {
 
     try {
       const token = await getIdToken();
+      const body = { amount: amountCents, phone: formattedPhone };
+
+      if (!navigator.onLine) {
+        queueRequest("/api/daraja/stkpush", "POST", body, { Authorization: `Bearer ${token}` });
+        showToast("Deposit queued — will send when online", "info");
+        statusEl.innerHTML = `<div style="color:var(--warning);padding:12px;background:rgba(245,158,11,0.1);border-radius:8px;">📦 Deposit queued — will process when back online</div>`;
+        statusEl.style.display = "block";
+        $("deposit-amount").value = "";
+        $("deposit-phone").value = "";
+        setLoading(btn, false);
+        return;
+      }
+
       const resp = await fetch("/api/daraja/stkpush", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ amount: amountCents, phone: formattedPhone }),
+        body: JSON.stringify(body),
       });
       const data = await resp.json();
 
@@ -128,10 +144,23 @@ function bindWithdraw() {
 
     try {
       const token = await getIdToken();
+      const body = { amount: amountCents, phone: formattedPhone };
+
+      if (!navigator.onLine) {
+        queueRequest("/api/daraja/b2c", "POST", body, { Authorization: `Bearer ${token}` });
+        showToast("Withdrawal queued — will send when online", "info");
+        statusEl.innerHTML = `<div style="color:var(--warning);padding:12px;background:rgba(245,158,11,0.1);border-radius:8px;">📦 Withdrawal queued — will process when back online</div>`;
+        statusEl.style.display = "block";
+        $("withdraw-amount").value = "";
+        $("withdraw-phone").value = "";
+        setLoading(btn, false);
+        return;
+      }
+
       const resp = await fetch("/api/daraja/b2c", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ amount: amountCents, phone: formattedPhone }),
+        body: JSON.stringify(body),
       });
       const data = await resp.json();
 

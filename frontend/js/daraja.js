@@ -48,9 +48,11 @@ async function refreshKESBalance() {
       headers: { "Authorization": `Bearer ${token}` },
     });
     const data = await resp.json();
-    const kes = data.kes_balance || 0;
-    $("kes-balance-amount").textContent = `KES ${formatAmount(kes)}`;
-    $("withdraw-kes-balance").textContent = `KES ${formatAmount(kes)}`;
+    const kes = data.kes_balance ?? data.balance ?? 0;
+    const el = $("kes-balance-amount");
+    if (el) el.textContent = `KES ${formatAmount(kes)}`;
+    const w = $("withdraw-kes-balance");
+    if (w) w.textContent = `KES ${formatAmount(kes)}`;
   } catch { /* ignore */ }
 }
 
