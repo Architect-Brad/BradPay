@@ -58,6 +58,8 @@ def match_orders(new_order):
                 for ao in ask_orders:
                     if match_amount <= 0:
                         break
+                    if bo.get("user_uid") and bo.get("user_uid") == ao.get("user_uid"):
+                        continue
                     bo_remaining = bo["amount"] - bo.get("filled", 0)
                     ao_remaining = ao["amount"] - ao.get("filled", 0)
                     fill = min(bo_remaining, ao_remaining, match_amount)
@@ -65,8 +67,8 @@ def match_orders(new_order):
                         continue
 
                     trade_result = execute_trade(
-                        buy_order_id=str(bo["id"]),
-                        sell_order_id=str(ao["id"]),
+                        buy_order_id=bo["id"],
+                        sell_order_id=ao["id"],
                         buyer_uid=bo["user_uid"],
                         seller_uid=ao["user_uid"],
                         amount=fill,

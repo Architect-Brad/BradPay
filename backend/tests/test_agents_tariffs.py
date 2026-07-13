@@ -92,27 +92,33 @@ def test_agent_profile(client, auth_headers, registered_user):
     assert "agent" in data
 
 
-def test_agent_verify(client, auth_headers, registered_user):
+def test_agent_verify(client, auth_headers, admin_headers, registered_user):
     client.post("/api/agents/register", json={
         "business_name": "Test Shop", "contact_phone": "+254712345678",
         "location": "Nairobi", "id_number": "ID12345",
     }, headers=auth_headers)
-    resp = client.post("/api/agents/verify", json={
+    # Non-admin must not be able to verify
+    denied = client.post("/api/agents/verify", json={
         "agent_uid": registered_user["uid"],
         "status": "active",
     }, headers=auth_headers)
+    assert denied.status_code == 401
+    resp = client.post("/api/agents/verify", json={
+        "agent_uid": registered_user["uid"],
+        "status": "active",
+    }, headers=admin_headers)
     assert resp.status_code == 200
     assert resp.get_json()["agent_uid"] == registered_user["uid"]
 
 
-def test_agent_float_topup(client, auth_headers, registered_user):
+def test_agent_float_topup(client, auth_headers, admin_headers, registered_user):
     client.post("/api/agents/register", json={
         "business_name": "Test Shop", "contact_phone": "+254712345678",
         "location": "Nairobi", "id_number": "ID12345",
     }, headers=auth_headers)
     client.post("/api/agents/verify", json={
         "agent_uid": registered_user["uid"], "status": "active",
-    }, headers=auth_headers)
+    }, headers=admin_headers)
     resp = client.post("/api/agents/float-topup", json={
         "amount": 500000,
     }, headers=auth_headers)
@@ -121,14 +127,14 @@ def test_agent_float_topup(client, auth_headers, registered_user):
     assert "amount" in data
 
 
-def test_agent_cash_in(client, auth_headers, registered_user, second_user, second_headers):
+def test_agent_cash_in(client, auth_headers, admin_headers, registered_user, second_user, second_headers):
     client.post("/api/agents/register", json={
         "business_name": "Test Shop", "contact_phone": "+254712345678",
         "location": "Nairobi", "id_number": "ID12345",
     }, headers=auth_headers)
     client.post("/api/agents/verify", json={
         "agent_uid": registered_user["uid"], "status": "active",
-    }, headers=auth_headers)
+    }, headers=admin_headers)
     client.post("/api/agents/float-topup", json={
         "amount": 500000,
     }, headers=auth_headers)
@@ -141,14 +147,14 @@ def test_agent_cash_in(client, auth_headers, registered_user, second_user, secon
     assert data["message"] == "Cash-in successful"
 
 
-def test_agent_cash_out(client, auth_headers, registered_user, second_user, second_headers):
+def test_agent_cash_out(client, auth_headers, admin_headers, registered_user, second_user, second_headers):
     client.post("/api/agents/register", json={
         "business_name": "Test Shop", "contact_phone": "+254712345678",
         "location": "Nairobi", "id_number": "ID12345",
     }, headers=auth_headers)
     client.post("/api/agents/verify", json={
         "agent_uid": registered_user["uid"], "status": "active",
-    }, headers=auth_headers)
+    }, headers=admin_headers)
     client.post("/api/agents/float-topup", json={
         "amount": 500000,
     }, headers=auth_headers)
@@ -165,18 +171,20 @@ def test_agent_cash_out(client, auth_headers, registered_user, second_user, seco
     assert data["message"] == "Cash-out successful"
 
 
-def test_agent_list_all(client, auth_headers, registered_user):
+def test_agent_list_all(client, auth_headers, admin_headers, registered_user):
     client.post("/api/agents/register", json={
         "business_name": "Test Shop", "contact_phone": "+254712345678",
         "location": "Nairobi", "id_number": "ID12345",
     }, headers=auth_headers)
-    resp = client.get("/api/agents/all", headers=auth_headers)
+    denied = client.get("/api/agents/all", headers=auth_headers)
+    assert denied.status_code == 401
+    resp = client.get("/api/agents/all", headers=admin_headers)
     assert resp.status_code == 200
     data = resp.get_json()
     assert "agents" in data
 
 
-def test_agent_float_transfer_success(client, auth_headers, second_headers, registered_user, second_user):
+def test_agent_float_transfer_success(client, auth_headers, second_headers, admin_headers, registered_user, second_user):
     client.post("/api/agents/register", json={
         "business_name": "Agent A", "contact_phone": "+254712345678",
         "location": "Nairobi", "id_number": "ID001",
@@ -187,10 +195,10 @@ def test_agent_float_transfer_success(client, auth_headers, second_headers, regi
     }, headers=second_headers)
     client.post("/api/agents/verify", json={
         "agent_uid": registered_user["uid"], "status": "active",
-    }, headers=auth_headers)
+    }, headers=admin_headers)
     client.post("/api/agents/verify", json={
         "agent_uid": second_user["uid"], "status": "active",
-    }, headers=second_headers)
+    }, headers=admin_headers)
     client.post("/api/agents/float-topup", json={
         "amount": 200000,
     }, headers=auth_headers)
@@ -205,21 +213,21 @@ def test_agent_float_transfer_success(client, auth_headers, second_headers, regi
     assert data["amount"] == 50000
 
 
-def test_agent_float_transfer_insufficient(client, auth_headers, second_headers, second_user, registered_user):
+def test_agent_float_transfer_insufficient(client, auth_headers, second_headers, admin_headers, second_user, registered_user):
     client.post("/api/agents/register", json={
         "business_name": "Agent A", "contact_phone": "+254712345678",
         "location": "Nairobi", "id_number": "ID001",
     }, headers=auth_headers)
     client.post("/api/agents/verify", json={
         "agent_uid": registered_user["uid"], "status": "active",
-    }, headers=auth_headers)
+    }, headers=admin_headers)
     client.post("/api/agents/register", json={
         "business_name": "Agent B", "contact_phone": "+254798765432",
         "location": "Mombasa", "id_number": "ID002",
     }, headers=second_headers)
     client.post("/api/agents/verify", json={
         "agent_uid": second_user["uid"], "status": "active",
-    }, headers=second_headers)
+    }, headers=admin_headers)
 
     resp = client.post("/api/agents/float/transfer", json={
         "to_agent_uid": second_user["uid"],

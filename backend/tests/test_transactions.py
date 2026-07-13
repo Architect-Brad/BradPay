@@ -33,13 +33,30 @@ def test_send_kes_nonexistent_recipient(client, auth_headers, registered_user):
 
 
 def test_send_kes_self(client, auth_headers, registered_user):
-    # App allows sending to self (no explicit block)
     resp = client.post("/api/transactions/send", json={
         "recipientUid": registered_user["uid"],
         "amount": 100,
         "pin": "8146",
     }, headers=auth_headers)
-    assert resp.status_code == 201
+    assert resp.status_code == 400
+    assert "yourself" in resp.get_json().get("error", "").lower()
+
+
+def test_offline_id_idempotent(client, auth_headers, registered_user, second_user):
+    body = {
+        "recipientUid": second_user["uid"],
+        "amount": 500,
+        "pin": "8146",
+        "offlineId": "offline-unique-abc-123",
+    }
+    r1 = client.post("/api/transactions/send", json=body, headers=auth_headers)
+    assert r1.status_code == 201, r1.get_json()
+    bal1 = client.get("/api/transactions/balance", headers=auth_headers).get_json()["balance"]
+    r2 = client.post("/api/transactions/send", json=body, headers=auth_headers)
+    assert r2.status_code == 201
+    bal2 = client.get("/api/transactions/balance", headers=auth_headers).get_json()["balance"]
+    assert bal1 == bal2
+    assert r2.get_json()["transaction"].get("idempotent_replay") is True
 
 
 def test_get_transactions(client, auth_headers, registered_user):

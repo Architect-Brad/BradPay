@@ -62,8 +62,9 @@ def test_ussd_account_menu(client, registered_user):
     })
     assert resp.status_code == 200
     assert "My UID" in resp.get_json()["response"]
+    # Africa's Talking cumulative text
     resp = client.post("/api/ussd/callback", json={
-        "sessionId": sid, "phoneNumber": phone, "text": "1",
+        "sessionId": sid, "phoneNumber": phone, "text": "5*1",
     })
     assert resp.status_code == 200
     data = resp.get_json()

@@ -89,7 +89,9 @@ def send():
     if isinstance(result, dict) and "error" in result:
         return jsonify(result), 400
 
-    get_ledger().add_transaction(result)
+    # Skip ledger on idempotent offline replay so we don't double-record.
+    if not (isinstance(result, dict) and result.get("idempotent_replay")):
+        get_ledger().add_transaction(result)
 
     return jsonify({"message": "Transfer successful", "transaction": result}), 201
 

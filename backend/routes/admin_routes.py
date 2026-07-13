@@ -107,7 +107,8 @@ def credit():
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    update_kes_balance(uid, amount)
+    if not update_kes_balance(uid, amount):
+        return jsonify({"error": "Failed to credit user"}), 500
     tx = _record_admin_tx(uid, amount, "deposit", note)
     if isinstance(tx, tuple):
         return jsonify(tx[0]), tx[1]
@@ -118,11 +119,12 @@ def credit():
         pass
 
     log_event("admin_credit", "info", uid, {"amount": amount, "note": note})
+    fresh = get_user_by_firebase_uid(uid) or user
     return jsonify({
         "message": f"Credited KES {amount / 100:.2f}",
         "amount": amount,
         "uid": uid,
-        "new_balance": (user.get("kes_balance", 0) or 0) + amount,
+        "new_balance": fresh.get("balance", 0) or 0,
     })
 
 
@@ -148,11 +150,12 @@ def debit():
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    kes = user.get("kes_balance", 0)
-    if kes < amount:
+    bal = user.get("balance", 0) or 0
+    if bal < amount:
         return jsonify({"error": "Insufficient KES balance"}), 400
 
-    update_kes_balance(uid, -amount)
+    if not update_kes_balance(uid, -amount):
+        return jsonify({"error": "Insufficient KES balance"}), 400
     tx = _record_admin_tx(uid, amount, "withdrawal", note)
     if isinstance(tx, tuple):
         return jsonify(tx[0]), tx[1]
@@ -163,11 +166,12 @@ def debit():
         pass
 
     log_event("admin_debit", "info", uid, {"amount": amount, "note": note})
+    fresh = get_user_by_firebase_uid(uid) or user
     return jsonify({
         "message": f"Debited KES {amount / 100:.2f}",
         "amount": amount,
         "uid": uid,
-        "new_balance": (user.get("kes_balance", 0) or 0) - amount,
+        "new_balance": fresh.get("balance", 0) or 0,
     })
 
 
@@ -185,7 +189,8 @@ def faucet():
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    update_kes_balance(uid, amount)
+    if not update_kes_balance(uid, amount):
+        return jsonify({"error": "Failed to credit faucet"}), 500
     tx = _record_admin_tx(uid, amount, "deposit", f"Faucet credit — KES {amount / 100:.2f}")
     if isinstance(tx, tuple):
         return jsonify(tx[0]), tx[1]
@@ -195,8 +200,9 @@ def faucet():
     except Exception:
         pass
 
+    fresh = get_user_by_firebase_uid(uid) or user
     return jsonify({
         "message": f"Faucet credited KES {amount / 100:.2f}",
         "amount": amount,
-        "new_balance": (user.get("kes_balance", 0) or 0) + amount,
+        "new_balance": fresh.get("balance", 0) or 0,
     })

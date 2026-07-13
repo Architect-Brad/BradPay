@@ -89,11 +89,28 @@ pip install -r requirements.txt
 python -m pytest tests/ -q
 ```
 
+## Bugfix batch (2026-07) — money, authz, USSD, Daraja
+
+Also fixed in a later pass (see `tests/test_bugfixes.py`):
+
+1. **B2C `type=` TypeError** after debiting the user → `type_="withdrawal"`.
+2. **M-PESA units** — API uses cents; Daraja gets whole KES (`cents_to_kes` /
+   `kes_to_cents`); STK password/timestamp desync fixed.
+3. **Dual balances** — deposits/admin/M-PESA now move main `balance`
+   (`update_kes_balance` / `get_kes_balance` unified).
+4. **Callback idempotency** — `claim_mpesa_callback` only finalizes pending
+   txs once (no double credit/refund); B2C timeout refunds once.
+5. **Agent authz** — `/agents/verify` and `/agents/all` require admin key.
+6. **USSD cumulative text** — uses last `*` segment (Africa's Talking).
+7. **Agent money moves** — atomic float topup/transfer/cash-in/out;
+   commission conserved from cash-in amount (not minted).
+8. **Self-transfer blocked**; **offline_id** idempotent; ledger gets UIDs.
+9. **Buy orders lock funds**; no self-match; trade fees to `__fees__`.
+10. **Safaricom IP** — `X-Forwarded-For` / `X-Real-IP` for proxied callbacks;
+    TEST_MODE bypass for local tests.
+11. **Fraud balance_drain** checks `balance` (not `kes_balance`).
+
 ## Not fixed (out of scope / lower priority — flagging for visibility)
-- `debit()` in `admin_routes.py` has the same check-then-act shape as the
-  fixed transfer code, but floors at zero rather than allowing an
-  overdraft, and it's admin-only. Same pattern (`BEGIN IMMEDIATE` +
-  conditional `UPDATE`) would close it if you want it hardened too.
 - `storage/backend.py`, `storage/sqlite_backend.py`, and
   `storage/postgres_backend.py` define a storage abstraction, including
   Postgres support, that nothing in the app actually imports — `data.py`
@@ -104,3 +121,5 @@ python -m pytest tests/ -q
   the app currently always runs on local SQLite unless you configure
   Firestore. If you want Postgres in production, that abstraction needs to
   actually be wired into `data.py` — it isn't safe to rely on today.
+- USSD sessions remain in-process memory (broken across multi-instance
+  serverless without Redis or similar).

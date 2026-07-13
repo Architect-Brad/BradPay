@@ -12,6 +12,7 @@ from data import (
 logger = logging.getLogger(__name__)
 
 # In-memory session store: {session_id: {"phone": ..., "state": ...}}
+# Note: ephemeral on multi-instance serverless — fine for MVP; use Redis in prod.
 _sessions = {}
 
 
@@ -27,6 +28,14 @@ def _clear_session(session_id):
     _sessions.pop(session_id, None)
 
 
+def _last_input(text):
+    """Africa's Talking sends cumulative text joined by '*'. Use the last segment."""
+    if text is None or text == "":
+        return ""
+    parts = str(text).split("*")
+    return parts[-1] if parts else ""
+
+
 def handle_ussd(session_id, phone_number, text):
     phone_number = phone_number.strip()
     normalized_phone = phone_number
@@ -34,6 +43,7 @@ def handle_ussd(session_id, phone_number, text):
         normalized_phone = normalized_phone[1:]
 
     session = _get_session(session_id)
+    current_input = _last_input(text)
 
     if text == "" or text is None:
         # New session
@@ -45,9 +55,6 @@ def handle_ussd(session_id, phone_number, text):
 
         _set_session(session_id, phone_number, {"state": "main", "user": user})
         return _main_menu()
-
-    parts = text.split("*")
-    current_input = parts[0]
 
     if not session:
         return _respond("END", "Session expired. Please try again.")
@@ -73,12 +80,12 @@ def handle_ussd(session_id, phone_number, text):
 
     # Send flow
     if session["state"].get("state") == "send_phone":
-        recipient_phone = parts[0] if len(parts) >= 1 else ""
+        recipient_phone = current_input
         session["state"] = {"state": "send_amount", "user": user, "recipient_phone": recipient_phone}
         return _respond("CON", "Enter amount (KES):")
 
     if session["state"].get("state") == "send_amount":
-        amount_str = parts[0] if len(parts) >= 1 else "0"
+        amount_str = current_input or "0"
         try:
             amount_cents = int(float(amount_str) * 100)
         except ValueError:
@@ -87,10 +94,13 @@ def handle_ussd(session_id, phone_number, text):
             return _respond("CON", "Minimum amount is KES 1.00.\nEnter amount (KES):")
         session["state"]["amount"] = amount_cents
         session["state"]["state"] = "send_pin"
-        return _respond("CON", f"Send KES {amount_str} to {session['state']['recipient_phone']}?\nEnter your PIN:")
+        return _respond(
+            "CON",
+            f"Send KES {amount_str} to {session['state']['recipient_phone']}?\nEnter your PIN:",
+        )
 
     if session["state"].get("state") == "send_pin":
-        pin = parts[0] if len(parts) >= 1 else ""
+        pin = current_input or ""
         if len(pin) < 4:
             return _respond("CON", "Invalid PIN. Enter your PIN:")
 
@@ -106,12 +116,13 @@ def handle_ussd(session_id, phone_number, text):
         rp = ''.join(c for c in recipient_phone if c.isdigit())
         if rp.startswith('0'):
             rp = '254' + rp[1:]
-        if rp.startswith('+'):
-            rp = rp[1:]
         if not rp.startswith('254'):
             rp = '254' + rp
 
         recipient_user = get_user_by_phone_or_email(rp)
+        if not recipient_user:
+            # try with + prefix
+            recipient_user = get_user_by_phone_or_email("+" + rp)
         if not recipient_user:
             _clear_session(session_id)
             return _respond("END", f"Failed: Recipient {recipient_phone} not found on BradPay.")

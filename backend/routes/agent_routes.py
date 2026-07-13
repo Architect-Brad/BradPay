@@ -2,22 +2,26 @@ from flask import Blueprint, request, jsonify, g
 import logging
 
 from routes.auth_routes import require_auth, require_user
+from routes.admin_routes import require_admin
 from data import (
     create_agent,
     get_agent,
     get_agent_by_id,
     update_agent_status,
-    update_agent_float,
     get_all_agents,
-    create_agent_transaction,
     get_agent_transactions,
-    get_active_tariffs,
-    get_tariff_by_type,
-    update_kes_balance,
 )
 
 logger = logging.getLogger(__name__)
 agent_bp = Blueprint("agents", __name__, url_prefix="/api/agents")
+
+
+def _result_or_error(result):
+    if isinstance(result, tuple):
+        return jsonify(result[0]), result[1]
+    if isinstance(result, dict) and "error" in result and "message" not in result:
+        return jsonify(result), 400
+    return jsonify(result)
 
 
 @agent_bp.route("/register", methods=["POST"])
@@ -44,7 +48,7 @@ def register():
         location=data.get("location"),
     )
 
-    if "error" in agent:
+    if isinstance(agent, dict) and "error" in agent:
         return jsonify(agent), 500
 
     return jsonify({"message": "Agent registration submitted for verification", "agent": agent}), 201
@@ -61,8 +65,9 @@ def profile():
 
 
 @agent_bp.route("/verify", methods=["POST"])
-@require_auth
+@require_admin
 def verify():
+    """Admin-only: activate / suspend / reject an agent."""
     data = request.get_json(silent=True) or {}
     agent_uid = data.get("agent_uid")
     status = data.get("status", "active")
@@ -92,7 +97,7 @@ def transactions():
 
 
 @agent_bp.route("/all", methods=["GET"])
-@require_auth
+@require_admin
 def all_agents():
     status = request.args.get("status")
     agents = get_all_agents(status)
@@ -105,25 +110,15 @@ def all_agents():
 def float_topup():
     data = request.get_json(silent=True) or {}
     amount = data.get("amount")
-    if not amount or amount < 1:
+    try:
+        amount = int(amount)
+        if amount < 1:
+            raise ValueError
+    except (TypeError, ValueError):
         return jsonify({"error": "Invalid amount"}), 400
 
-    user_uid = g.firebase_uid
-    agent = get_agent(user_uid)
-    if not agent:
-        return jsonify({"error": "Not an agent"}), 404
-    if agent["status"] != "active":
-        return jsonify({"error": "Agent not active"}), 403
-
-    kes_balance = g.current_user.get("kes_balance", 0)
-    if kes_balance < amount:
-        return jsonify({"error": "Insufficient KES balance"}), 400
-
-    update_kes_balance(user_uid, -amount)
-    update_agent_float(user_uid, amount)
-
-    create_agent_transaction(user_uid, "float_topup", amount, reference=f"float_{user_uid[:8]}_{amount}")
-    return jsonify({"message": "Float topped up", "amount": amount})
+    from data import agent_float_topup
+    return _result_or_error(agent_float_topup(g.firebase_uid, amount))
 
 
 @agent_bp.route("/float/transfer", methods=["POST"])
@@ -133,7 +128,7 @@ def float_transfer():
     data = request.get_json(silent=True) or {}
     to_agent_uid = data.get("to_agent_uid")
     amount = data.get("amount")
-    if not to_agent_uid or not amount:
+    if not to_agent_uid or amount is None:
         return jsonify({"error": "to_agent_uid and amount are required"}), 400
     try:
         amount = int(amount)
@@ -142,35 +137,8 @@ def float_transfer():
     except (TypeError, ValueError):
         return jsonify({"error": "amount must be a positive integer"}), 400
 
-    from_uid = g.firebase_uid
-    from_agent = get_agent(from_uid)
-    if not from_agent:
-        return jsonify({"error": "You are not an agent"}), 404
-    if from_agent["status"] != "active":
-        return jsonify({"error": "Your agent account is not active"}), 403
-
-    to_agent = get_agent(to_agent_uid)
-    if not to_agent:
-        return jsonify({"error": "Recipient agent not found"}), 404
-    if to_agent["status"] != "active":
-        return jsonify({"error": "Recipient agent is not active"}), 403
-
-    if from_agent.get("float_balance", 0) < amount:
-        return jsonify({"error": "Insufficient float balance"}), 400
-
-    update_agent_float(from_uid, -amount)
-    update_agent_float(to_agent_uid, amount)
-
-    ref = f"float_xfer_{from_uid[:8]}_{to_agent_uid[:8]}_{amount}"
-    create_agent_transaction(from_uid, "float_withdrawal", amount, user_uid=to_agent_uid, reference=ref)
-    create_agent_transaction(to_agent_uid, "float_topup", amount, user_uid=from_uid, reference=ref)
-
-    return jsonify({
-        "message": f"Float transfer of KES {amount / 100:.2f} sent",
-        "amount": amount,
-        "from_agent": from_uid,
-        "to_agent": to_agent_uid,
-    })
+    from data import agent_float_transfer
+    return _result_or_error(agent_float_transfer(g.firebase_uid, to_agent_uid, amount))
 
 
 @agent_bp.route("/cash-in", methods=["POST"])
@@ -179,36 +147,17 @@ def cash_in():
     data = request.get_json(silent=True) or {}
     user_phone = data.get("phone")
     amount = data.get("amount")
-    if not user_phone or not amount:
+    if not user_phone or amount is None:
         return jsonify({"error": "phone and amount are required"}), 400
+    try:
+        amount = int(amount)
+        if amount <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({"error": "amount must be a positive integer"}), 400
 
-    agent_uid = g.firebase_uid
-    agent = get_agent(agent_uid)
-    if not agent or agent["status"] != "active":
-        return jsonify({"error": "Agent not active"}), 403
-    if agent.get("float_balance", 0) < amount:
-        return jsonify({"error": "Insufficient float"}), 400
-
-    from data import get_user_by_phone_or_email, update_kes_balance
-    user = get_user_by_phone_or_email(user_phone)
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    update_agent_float(agent_uid, -amount)
-    update_kes_balance(user["firebase_uid"], amount)
-    create_agent_transaction(agent_uid, "cash_in", amount, user_uid=user["firebase_uid"], reference=f"cashin_{user_phone}")
-
-    tariffs = get_tariff_by_type("agent_commission")
-    commission = 0
-    for t in tariffs:
-        if t.get("percentage") and (not t.get("min_amount") or amount >= t["min_amount"]):
-            commission = int(amount * t["percentage"] / 10000)
-            break
-    if commission > 0:
-        update_agent_float(agent_uid, commission)
-        create_agent_transaction(agent_uid, "commission", commission, reference=f"comm_{agent_uid[:8]}_{amount}")
-
-    return jsonify({"message": "Cash-in successful", "amount": amount})
+    from data import agent_cash_in
+    return _result_or_error(agent_cash_in(g.firebase_uid, user_phone, amount))
 
 
 @agent_bp.route("/cash-out", methods=["POST"])
@@ -217,24 +166,14 @@ def cash_out():
     data = request.get_json(silent=True) or {}
     user_phone = data.get("phone")
     amount = data.get("amount")
-    if not user_phone or not amount:
+    if not user_phone or amount is None:
         return jsonify({"error": "phone and amount are required"}), 400
+    try:
+        amount = int(amount)
+        if amount <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({"error": "amount must be a positive integer"}), 400
 
-    agent_uid = g.firebase_uid
-    agent = get_agent(agent_uid)
-    if not agent or agent["status"] != "active":
-        return jsonify({"error": "Agent not active"}), 403
-
-    from data import get_user_by_phone_or_email, update_kes_balance
-    user = get_user_by_phone_or_email(user_phone)
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    user_kes = user.get("kes_balance", 0)
-    if user_kes < amount:
-        return jsonify({"error": "User insufficient KES balance"}), 400
-
-    update_kes_balance(user["firebase_uid"], -amount)
-    update_agent_float(agent_uid, amount)
-    create_agent_transaction(agent_uid, "cash_out", amount, user_uid=user["firebase_uid"], reference=f"cashout_{user_phone}")
-    return jsonify({"message": "Cash-out successful", "amount": amount})
+    from data import agent_cash_out
+    return _result_or_error(agent_cash_out(g.firebase_uid, user_phone, amount))

@@ -172,8 +172,9 @@ def evaluate_transaction(sender_uid, recipient_uid, amount, tx_ref=None):
 
     user = _backend().get_user_by_firebase_uid(sender_uid)
     if user:
-        kes = user.get("kes_balance", 0)
-        if kes > 0 and amount > kes * 0.9:
+        # P2P spends `balance` (main wallet); kes_balance is a legacy mirror.
+        wallet = user.get("balance", 0) or 0
+        if wallet > 0 and amount > wallet * 0.9:
             triggered.append(FRAUD_RULES["balance_drain"])
             total_score += FRAUD_RULES["balance_drain"]["score"]
 

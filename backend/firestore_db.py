@@ -146,9 +146,27 @@ def create_transaction(sender_uid, recipient_uid, amount, note=None, offline_id=
     if amount is None or amount <= 0:
         return {"error": "Amount must be a positive integer"}, 400
 
+    if sender_uid == recipient_uid:
+        return {"error": "Cannot send money to yourself"}, 400
+
     db = get_firestore()
     sender_ref = _user_ref(sender_uid)
     recipient_ref = _user_ref(recipient_uid)
+
+    # Offline idempotency (best-effort query before the transactional write).
+    if offline_id:
+        docs = (
+            _tx_collection()
+            .where("offline_id", "==", offline_id)
+            .where("sender_uid", "==", sender_uid)
+            .limit(1)
+            .stream()
+        )
+        for d in docs:
+            existing = d.to_dict()
+            existing["id"] = d.id
+            existing["idempotent_replay"] = True
+            return existing
 
     fee = calculate_fee("transfer", amount)
     total_debit = amount + fee
@@ -192,8 +210,16 @@ def create_transaction(sender_uid, recipient_uid, amount, note=None, offline_id=
             "created_at": now,
         }
 
-        transaction.update(sender_ref, {"balance": sender["balance"] - total_debit, "updated_at": now})
-        transaction.update(recipient_ref, {"balance": recipient["balance"] + amount, "updated_at": now})
+        transaction.update(sender_ref, {
+            "balance": sender["balance"] - total_debit,
+            "kes_balance": max(0, sender.get("kes_balance", 0) - total_debit),
+            "updated_at": now,
+        })
+        transaction.update(recipient_ref, {
+            "balance": recipient["balance"] + amount,
+            "kes_balance": recipient.get("kes_balance", 0) + amount,
+            "updated_at": now,
+        })
         if fee > 0:
             fees_ref = _user_ref("__fees__")
             fees_snap = fees_ref.get(transaction=transaction)
@@ -277,12 +303,12 @@ def create_order(user_uid, order_type, price, amount):
             return
         user = user_doc.to_dict()
 
-        if order_type == "sell":
-            available = user.get("balance", 0) - user.get("locked_balance", 0)
-            if available < amount:
-                result["error"] = ("Insufficient available balance", 400)
-                return
-            transaction.update(user_ref, {"locked_balance": user.get("locked_balance", 0) + amount})
+        available = user.get("balance", 0) - user.get("locked_balance", 0)
+        if available < amount:
+            result["error"] = ("Insufficient available balance", 400)
+            return
+        # Lock for both buy and sell so bids cannot overcommit.
+        transaction.update(user_ref, {"locked_balance": user.get("locked_balance", 0) + amount})
 
         now = datetime.now(timezone.utc).isoformat()
         order_data = {
@@ -320,7 +346,7 @@ def cancel_order(user_uid, order_id):
         return {"error": "Order cannot be cancelled"}, 400
 
     remaining = order["amount"] - order["filled"]
-    if order["type"] == "sell" and remaining > 0:
+    if remaining > 0:
         _user_ref(user_uid).update({"locked_balance": _inc(-remaining)})
 
     ref.update({"status": "cancelled"})
@@ -394,19 +420,34 @@ def get_order_book(limit=15):
 
 
 def execute_trade(buy_order_id, sell_order_id, buyer_uid, seller_uid, amount, price):
+    if buyer_uid == seller_uid:
+        return {"error": "Cannot match orders from the same user", "success": False}
     db = get_firestore()
     try:
         buyer_fee = max(1, amount // 1000)
         seller_fee = max(1, amount // 1000)
-        seller_payout = amount - seller_fee
+        net_to_buyer = amount - buyer_fee - seller_fee
+        if net_to_buyer < 0:
+            return {"error": "Fees exceed trade amount", "success": False}
 
-        db.collection("users").document(buyer_uid).update({
-            "balance": _inc(amount - buyer_fee),
-        })
         db.collection("users").document(seller_uid).update({
             "balance": _inc(-amount),
             "locked_balance": _inc(-amount),
         })
+        db.collection("users").document(buyer_uid).update({
+            "balance": _inc(net_to_buyer),
+            "locked_balance": _inc(-amount),
+        })
+        fees_ref = _user_ref("__fees__")
+        fees_snap = fees_ref.get()
+        if fees_snap.exists:
+            fees_ref.update({"balance": _inc(buyer_fee + seller_fee)})
+        else:
+            fees_ref.set({
+                "firebase_uid": "__fees__", "display_name": "BradPay Fees",
+                "balance": buyer_fee + seller_fee, "locked_balance": 0, "kes_balance": 0,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
 
         now = datetime.now(timezone.utc).isoformat()
         _trades_collection().add({
@@ -421,11 +462,9 @@ def execute_trade(buy_order_id, sell_order_id, buyer_uid, seller_uid, amount, pr
             "created_at": now,
         })
 
-        for oid, otype in [(buy_order_id, "buy"), (sell_order_id, "sell")]:
-            oref = db.collection("orders").document(oid)
-            oref.update({
-                "filled": _inc(amount),
-            })
+        for oid in (buy_order_id, sell_order_id):
+            oref = db.collection("orders").document(str(oid))
+            oref.update({"filled": _inc(amount)})
             odoc = oref.get()
             if odoc.exists:
                 o = odoc.to_dict()
@@ -540,7 +579,6 @@ def get_mpesa_transaction_by_conversation_id(conversation_id):
 
 
 def update_mpesa_transaction_status(identifier, result_code, result_desc):
-    db = get_firestore()
     status = "completed" if result_code == 0 else "failed"
     now = datetime.now(timezone.utc).isoformat()
     docs = (
@@ -574,24 +612,65 @@ def update_mpesa_transaction_status(identifier, result_code, result_desc):
             })
 
 
+def claim_mpesa_callback(identifier, result_code, result_desc):
+    """Claim a pending M-PESA tx. Returns (tx, claimed)."""
+    tx = get_mpesa_transaction_by_checkout_id(identifier)
+    if not tx:
+        tx = get_mpesa_transaction_by_conversation_id(identifier)
+    if not tx:
+        return None, False
+    if tx.get("status") != "pending":
+        return tx, False
+    status = "completed" if result_code == 0 else "failed"
+    now = datetime.now(timezone.utc).isoformat()
+    # Conditional-style: only update if still pending (best-effort without txn).
+    ref = _mpesa_collection().document(tx["id"])
+    snap = ref.get()
+    if not snap.exists or snap.to_dict().get("status") != "pending":
+        return tx, False
+    ref.update({
+        "result_code": result_code,
+        "result_desc": result_desc,
+        "status": status,
+        "updated_at": now,
+    })
+    tx["status"] = status
+    tx["result_code"] = result_code
+    tx["result_desc"] = result_desc
+    return tx, True
+
+
 def update_kes_balance(user_uid, amount_delta):
+    """Credit/debit main wallet `balance` (kes_balance kept in sync). Returns bool."""
     db = get_firestore()
     user_ref = db.collection("users").document(user_uid)
-    user_doc = user_ref.get()
-    if not user_doc.exists:
-        return
-    current = user_doc.to_dict().get("kes_balance", 0)
-    new_balance = max(0, current + amount_delta)
-    user_ref.update({
-        "kes_balance": new_balance,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-    })
+    result = {"ok": False}
+
+    @_firestore_module.transactional
+    def _run(transaction):
+        snap = user_ref.get(transaction=transaction)
+        if not snap.exists:
+            return
+        data = snap.to_dict()
+        bal = data.get("balance", 0) or 0
+        if amount_delta < 0 and bal < -amount_delta:
+            return
+        new_bal = bal + amount_delta
+        transaction.update(user_ref, {
+            "balance": new_bal,
+            "kes_balance": new_bal,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        })
+        result["ok"] = True
+
+    _run(db.transaction())
+    return result["ok"]
 
 
 def get_kes_balance(user_uid):
     user = get_user_by_firebase_uid(user_uid)
     if user:
-        return user.get("kes_balance", 0)
+        return user.get("balance", 0)
     return None
 
 
@@ -643,9 +722,12 @@ def update_agent_status(firebase_uid, status):
 def update_agent_float(agent_uid, amount_delta):
     agent = get_agent(agent_uid)
     if not agent:
-        return
-    new_float = max(0, agent.get("float_balance", 0) + amount_delta)
+        return False
+    new_float = agent.get("float_balance", 0) + amount_delta
+    if new_float < 0:
+        return False
     _agents_collection().document(agent_uid).update({"float_balance": new_float})
+    return True
 
 
 def get_all_agents(status=None):
@@ -683,6 +765,92 @@ def get_agent_transactions(agent_uid, limit=50):
         .stream()
     )
     return [d.to_dict() for d in docs]
+
+
+def agent_float_topup(user_uid, amount):
+    agent = get_agent(user_uid)
+    if not agent or agent.get("status") != "active":
+        return {"error": "Agent not active"}, 403
+    if not update_kes_balance(user_uid, -amount):
+        return {"error": "Insufficient balance"}, 400
+    update_agent_float(user_uid, amount)
+    create_agent_transaction(user_uid, "float_topup", amount, reference=f"float_{user_uid[:8]}_{amount}")
+    return {"message": "Float topped up", "amount": amount}
+
+
+def agent_float_transfer(from_uid, to_uid, amount):
+    from_agent = get_agent(from_uid)
+    to_agent = get_agent(to_uid)
+    if not from_agent:
+        return {"error": "You are not an agent"}, 404
+    if from_agent.get("status") != "active":
+        return {"error": "Your agent account is not active"}, 403
+    if not to_agent:
+        return {"error": "Recipient agent not found"}, 404
+    if to_agent.get("status") != "active":
+        return {"error": "Recipient agent is not active"}, 403
+    if not update_agent_float(from_uid, -amount):
+        return {"error": "Insufficient float balance"}, 400
+    update_agent_float(to_uid, amount)
+    ref = f"float_xfer_{from_uid[:8]}_{to_uid[:8]}_{amount}"
+    create_agent_transaction(from_uid, "float_withdrawal", amount, user_uid=to_uid, reference=ref)
+    create_agent_transaction(to_uid, "float_topup", amount, user_uid=from_uid, reference=ref)
+    return {
+        "message": f"Float transfer of KES {amount / 100:.2f} sent",
+        "amount": amount,
+        "from_agent": from_uid,
+        "to_agent": to_uid,
+    }
+
+
+def agent_cash_in(agent_uid, user_phone, amount):
+    agent = get_agent(agent_uid)
+    if not agent or agent.get("status") != "active":
+        return {"error": "Agent not active"}, 403
+    user = get_user_by_phone_or_email(user_phone)
+    if not user:
+        return {"error": "User not found"}, 404
+    commission = calculate_fee("agent_commission", amount)
+    if commission >= amount:
+        commission = 0
+    user_credit = amount - commission
+    if not update_agent_float(agent_uid, -amount):
+        return {"error": "Insufficient float"}, 400
+    if commission > 0:
+        update_agent_float(agent_uid, commission)
+        _agents_collection().document(agent_uid).update({
+            "total_commission_earned": _inc(commission),
+        })
+    update_kes_balance(user["firebase_uid"], user_credit)
+    create_agent_transaction(
+        agent_uid, "cash_in", amount, user_uid=user["firebase_uid"],
+        commission=commission, reference=f"cashin_{user_phone}",
+    )
+    if commission > 0:
+        create_agent_transaction(agent_uid, "commission", commission, reference=f"comm_{agent_uid[:8]}_{amount}")
+    return {
+        "message": "Cash-in successful",
+        "amount": amount,
+        "credited": user_credit,
+        "commission": commission,
+    }
+
+
+def agent_cash_out(agent_uid, user_phone, amount):
+    agent = get_agent(agent_uid)
+    if not agent or agent.get("status") != "active":
+        return {"error": "Agent not active"}, 403
+    user = get_user_by_phone_or_email(user_phone)
+    if not user:
+        return {"error": "User not found"}, 404
+    if not update_kes_balance(user["firebase_uid"], -amount):
+        return {"error": "User insufficient balance"}, 400
+    update_agent_float(agent_uid, amount)
+    create_agent_transaction(
+        agent_uid, "cash_out", amount, user_uid=user["firebase_uid"],
+        reference=f"cashout_{user_phone}",
+    )
+    return {"message": "Cash-out successful", "amount": amount}
 
 
 # ── Tariff functions ──

@@ -30,10 +30,22 @@ def _get_timestamp():
     return datetime.now().strftime("%Y%m%d%H%M%S")
 
 
-def _generate_password():
-    timestamp = _get_timestamp()
+def _generate_password(timestamp=None):
+    """Password must use the same timestamp as the STK payload."""
+    if timestamp is None:
+        timestamp = _get_timestamp()
     raw = f"{SHORTCODE}{PASSKEY}{timestamp}"
-    return base64.b64encode(raw.encode()).decode()
+    return base64.b64encode(raw.encode()).decode(), timestamp
+
+
+def cents_to_kes(cents):
+    """Internal amounts are cents; Daraja Amount is whole KES."""
+    return max(0, int(cents) // 100)
+
+
+def kes_to_cents(kes):
+    """Convert Daraja callback Amount (whole KES) to internal cents."""
+    return int(round(float(kes) * 100))
 
 
 def _get_access_token():
@@ -60,19 +72,19 @@ def _get_access_token():
 
 
 def stk_push(phone, amount, account_ref="BradPay", callback_url=None):
+    """Initiate STK Push. `amount` must be whole KES (not cents)."""
     token = _get_access_token()
     if not token:
         return {"error": "Failed to authenticate with Daraja"}
 
-    timestamp = _get_timestamp()
-    password = _generate_password()
+    password, timestamp = _generate_password()
 
     payload = {
         "BusinessShortCode": SHORTCODE,
         "Password": password,
         "Timestamp": timestamp,
         "TransactionType": "CustomerPayBillOnline",
-        "Amount": str(amount),
+        "Amount": str(int(amount)),
         "PartyA": phone,
         "PartyB": SHORTCODE,
         "PhoneNumber": phone,
@@ -97,6 +109,7 @@ def stk_push(phone, amount, account_ref="BradPay", callback_url=None):
 
 
 def b2c(phone, amount, remarks="Withdrawal from BradPay", callback_url=None, timeout_url=None):
+    """Initiate B2C payment. `amount` must be whole KES (not cents)."""
     token = _get_access_token()
     if not token:
         return {"error": "Failed to authenticate with Daraja"}
@@ -105,7 +118,7 @@ def b2c(phone, amount, remarks="Withdrawal from BradPay", callback_url=None, tim
         "InitiatorName": INITIATOR_NAME,
         "SecurityCredential": SECURITY_CREDENTIAL,
         "CommandID": "BusinessPayment",
-        "Amount": str(amount),
+        "Amount": str(int(amount)),
         "PartyA": B2C_SHORTCODE,
         "PartyB": phone,
         "Remarks": remarks,
@@ -134,8 +147,7 @@ def query_status(checkout_id):
     if not token:
         return {"error": "Failed to authenticate with Daraja"}
 
-    timestamp = _get_timestamp()
-    password = _generate_password()
+    password, timestamp = _generate_password()
 
     payload = {
         "BusinessShortCode": SHORTCODE,

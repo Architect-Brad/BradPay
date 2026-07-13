@@ -320,6 +320,9 @@ def create_transaction(sender_uid, recipient_uid, amount, note=None, offline_id=
     if amount is None or amount <= 0:
         return {"error": "Amount must be a positive integer"}, 400
 
+    if sender_uid == recipient_uid:
+        return {"error": "Cannot send money to yourself"}, 400
+
     conn = get_db()
     try:
         # BEGIN IMMEDIATE grabs the write lock up front so no other writer
@@ -327,6 +330,24 @@ def create_transaction(sender_uid, recipient_uid, amount, note=None, offline_id=
         # this closes the race where two concurrent transfers from the same
         # account could both pass the balance check before either commits.
         conn.execute("BEGIN IMMEDIATE")
+
+        # Offline / retry idempotency: same offline_id must not double-debit.
+        if offline_id:
+            existing = conn.execute(
+                "SELECT * FROM transactions WHERE offline_id = ? AND sender_id = "
+                "(SELECT id FROM users WHERE firebase_uid = ?)",
+                (offline_id, sender_uid),
+            ).fetchone()
+            if existing:
+                conn.commit()
+                tx = dict(existing)
+                tx["sender_uid"] = sender_uid
+                recip = conn.execute(
+                    "SELECT firebase_uid FROM users WHERE id = ?", (tx["recipient_id"],)
+                ).fetchone()
+                tx["recipient_uid"] = recip["firebase_uid"] if recip else recipient_uid
+                tx["idempotent_replay"] = True
+                return tx
 
         sender = conn.execute(
             "SELECT id, firebase_uid, balance FROM users WHERE firebase_uid = ?", (sender_uid,)
@@ -336,7 +357,7 @@ def create_transaction(sender_uid, recipient_uid, amount, note=None, offline_id=
             return {"error": "Sender not found"}, 404
 
         recipient = conn.execute(
-            "SELECT id, balance FROM users WHERE firebase_uid = ?", (recipient_uid,)
+            "SELECT id, firebase_uid, balance FROM users WHERE firebase_uid = ?", (recipient_uid,)
         ).fetchone()
         if not recipient:
             conn.rollback()
@@ -384,7 +405,13 @@ def create_transaction(sender_uid, recipient_uid, amount, note=None, offline_id=
         tx = conn.execute(
             "SELECT * FROM transactions WHERE tx_ref = ?", (tx_ref,)
         ).fetchone()
-        return dict(tx)
+        result = dict(tx)
+        # Ledger / clients expect UIDs, not internal integer ids.
+        result["sender_uid"] = sender_uid
+        result["recipient_uid"] = recipient_uid
+        result["sender_name"] = None
+        result["recipient_name"] = None
+        return result
     except Exception as e:
         conn.rollback()
         return {"error": str(e)}, 500
@@ -443,22 +470,20 @@ def create_order(user_uid, order_type, price, amount):
             conn.rollback()
             return {"error": "User not found"}, 404
 
-        if order_type == "sell":
-            available = user["balance"] - (user["locked_balance"] or 0)
-            if available < amount:
-                conn.rollback()
-                return {"error": "Insufficient available balance"}, 400
-            # Conditional UPDATE re-verifies available balance atomically so
-            # a concurrent order placed in the same window can't lock more
-            # than the account actually has.
-            cur = conn.execute(
-                "UPDATE users SET locked_balance = COALESCE(locked_balance, 0) + ? "
-                "WHERE firebase_uid = ? AND balance - COALESCE(locked_balance, 0) >= ?",
-                (amount, user_uid, amount),
-            )
-            if cur.rowcount == 0:
-                conn.rollback()
-                return {"error": "Insufficient available balance"}, 400
+        # Both buy and sell lock `amount` of available balance so bids cannot
+        # overcommit capital and asks cannot sell what they don't have.
+        available = user["balance"] - (user["locked_balance"] or 0)
+        if available < amount:
+            conn.rollback()
+            return {"error": "Insufficient available balance"}, 400
+        cur = conn.execute(
+            "UPDATE users SET locked_balance = COALESCE(locked_balance, 0) + ? "
+            "WHERE firebase_uid = ? AND balance - COALESCE(locked_balance, 0) >= ?",
+            (amount, user_uid, amount),
+        )
+        if cur.rowcount == 0:
+            conn.rollback()
+            return {"error": "Insufficient available balance"}, 400
 
         conn.execute(
             """INSERT INTO orders (user_uid, type, price, amount)
@@ -490,7 +515,8 @@ def cancel_order(user_uid, order_id):
             return {"error": "Order cannot be cancelled"}, 400
 
         remaining = order["amount"] - order["filled"]
-        if order["type"] == "sell" and remaining > 0:
+        # Both buy and sell lock funds; release remaining lock on cancel.
+        if remaining > 0:
             conn.execute(
                 "UPDATE users SET locked_balance = MAX(COALESCE(locked_balance,0) - ?, 0) WHERE firebase_uid = ?",
                 (remaining, user_uid),
@@ -572,36 +598,62 @@ def get_order_book(limit=15):
 
 
 def execute_trade(buy_order_id, sell_order_id, buyer_uid, seller_uid, amount, price):
+    if buyer_uid == seller_uid:
+        return {"error": "Cannot match orders from the same user", "success": False}
+
     conn = get_db()
     try:
         buyer_fee = max(1, amount // 1000)
         seller_fee = max(1, amount // 1000)
-        seller_payout = amount - seller_fee
 
-        conn.execute("BEGIN TRANSACTION")
+        conn.execute("BEGIN IMMEDIATE")
 
-        conn.execute(
-            "UPDATE users SET balance = balance + ? WHERE firebase_uid = ?",
-            (amount - buyer_fee, buyer_uid),
+        # Seller: release lock and debit the filled amount (asset transfer).
+        # Buyer: release bid lock (collateral) and credit net amount from seller.
+        cur = conn.execute(
+            "UPDATE users SET balance = balance - ?, "
+            "locked_balance = MAX(COALESCE(locked_balance,0) - ?, 0) "
+            "WHERE firebase_uid = ? AND balance >= ? AND COALESCE(locked_balance,0) >= ?",
+            (amount, amount, seller_uid, amount, amount),
         )
+        if cur.rowcount == 0:
+            conn.rollback()
+            return {"error": "Seller insufficient locked balance", "success": False}
+
+        # Buyer unlocks bid collateral and receives net fill; fees conserved.
+        net_to_buyer = amount - buyer_fee - seller_fee
+        if net_to_buyer < 0:
+            conn.rollback()
+            return {"error": "Fees exceed trade amount", "success": False}
+        cur = conn.execute(
+            "UPDATE users SET locked_balance = MAX(COALESCE(locked_balance,0) - ?, 0), "
+            "balance = balance + ? "
+            "WHERE firebase_uid = ? AND COALESCE(locked_balance,0) >= ?",
+            (amount, net_to_buyer, buyer_uid, amount),
+        )
+        if cur.rowcount == 0:
+            conn.rollback()
+            return {"error": "Buyer insufficient locked balance", "success": False}
+
+        fees_id = _get_or_create_fees_account(conn)
         conn.execute(
-            "UPDATE users SET balance = balance - ?, locked_balance = MAX(COALESCE(locked_balance,0) - ?, 0) WHERE firebase_uid = ?",
-            (amount, amount, seller_uid),
+            "UPDATE users SET balance = balance + ? WHERE id = ?",
+            (buyer_fee + seller_fee, fees_id),
         )
 
         conn.execute(
             """INSERT INTO trades (buy_order_id, sell_order_id, buyer_uid, seller_uid, amount, price, buyer_fee, seller_fee)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (buy_order_id, sell_order_id, buyer_uid, seller_uid, amount, price, buyer_fee, seller_fee),
+            (int(buy_order_id), int(sell_order_id), buyer_uid, seller_uid, amount, price, buyer_fee, seller_fee),
         )
 
         conn.execute(
             "UPDATE orders SET filled = filled + ?, status = CASE WHEN filled + ? >= amount THEN 'filled' ELSE 'partial' END WHERE id = ?",
-            (amount, amount, buy_order_id),
+            (amount, amount, int(buy_order_id)),
         )
         conn.execute(
             "UPDATE orders SET filled = filled + ?, status = CASE WHEN filled + ? >= amount THEN 'filled' ELSE 'partial' END WHERE id = ?",
-            (amount, amount, sell_order_id),
+            (amount, amount, int(sell_order_id)),
         )
 
         conn.commit()
@@ -694,6 +746,7 @@ def get_mpesa_transaction_by_conversation_id(conversation_id):
 
 
 def update_mpesa_transaction_status(identifier, result_code, result_desc):
+    """Legacy non-atomic status update. Prefer claim_mpesa_callback for money moves."""
     conn = get_db()
     status = "completed" if result_code == 0 else "failed"
     conn.execute(
@@ -706,24 +759,99 @@ def update_mpesa_transaction_status(identifier, result_code, result_desc):
     conn.close()
 
 
-def update_kes_balance(user_uid, amount_delta):
+def claim_mpesa_callback(identifier, result_code, result_desc):
+    """Atomically claim a pending M-PESA tx for callback processing.
+
+    Returns (tx_dict, claimed: bool). claimed is False if already finalized
+    (idempotent replay) or not found.
+    """
     conn = get_db()
-    conn.execute(
-        """UPDATE users SET kes_balance = MAX(COALESCE(kes_balance, 0) + ?, 0),
-            updated_at = datetime('now') WHERE firebase_uid = ?""",
-        (amount_delta, user_uid),
-    )
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        tx = conn.execute(
+            """SELECT * FROM mpesa_transactions
+               WHERE checkout_id = ? OR conversation_id = ?""",
+            (identifier, identifier),
+        ).fetchone()
+        if not tx:
+            conn.rollback()
+            return None, False
+        tx = dict(tx)
+        if tx["status"] != "pending":
+            conn.rollback()
+            return tx, False
+        status = "completed" if result_code == 0 else "failed"
+        conn.execute(
+            """UPDATE mpesa_transactions
+               SET result_code = ?, result_desc = ?, status = ?, updated_at = datetime('now')
+               WHERE id = ? AND status = 'pending'""",
+            (result_code, result_desc, status, tx["id"]),
+        )
+        if conn.total_changes == 0:
+            conn.rollback()
+            return tx, False
+        conn.commit()
+        tx["status"] = status
+        tx["result_code"] = result_code
+        tx["result_desc"] = result_desc
+        return tx, True
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def update_kes_balance(user_uid, amount_delta):
+    """Credit/debit the main wallet (`balance`).
+
+    kes_balance is kept in sync for backward-compatible reads. Debits use a
+    conditional UPDATE so concurrent withdrawals cannot overdraw (returns False
+    if insufficient funds). Credits always return True if the user exists.
+    """
+    conn = get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        if amount_delta < 0:
+            need = -amount_delta
+            cur = conn.execute(
+                """UPDATE users SET balance = balance - ?,
+                       kes_balance = MAX(COALESCE(kes_balance, 0) - ?, 0),
+                       updated_at = datetime('now')
+                   WHERE firebase_uid = ? AND balance >= ?""",
+                (need, need, user_uid, need),
+            )
+            if cur.rowcount == 0:
+                conn.rollback()
+                return False
+        else:
+            cur = conn.execute(
+                """UPDATE users SET balance = balance + ?,
+                       kes_balance = COALESCE(kes_balance, 0) + ?,
+                       updated_at = datetime('now')
+                   WHERE firebase_uid = ?""",
+                (amount_delta, amount_delta, user_uid),
+            )
+            if cur.rowcount == 0:
+                conn.rollback()
+                return False
+        conn.commit()
+        return True
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def get_kes_balance(user_uid):
+    """Return spendable wallet balance (unified with P2P `balance`)."""
     conn = get_db()
     user = conn.execute(
-        "SELECT kes_balance FROM users WHERE firebase_uid = ?", (user_uid,)
+        "SELECT balance FROM users WHERE firebase_uid = ?", (user_uid,)
     ).fetchone()
     conn.close()
-    return user["kes_balance"] if user else None
+    return user["balance"] if user else None
 
 
 # ── Agent functions ──
@@ -777,14 +905,266 @@ def update_agent_status(firebase_uid, status):
 
 
 def update_agent_float(agent_uid, amount_delta):
+    """Non-atomic float adjust. Prefer atomic_* helpers for money moves."""
     conn = get_db()
-    conn.execute(
-        """UPDATE agents SET float_balance = MAX(COALESCE(float_balance, 0) + ?, 0)
-           WHERE firebase_uid = ?""",
-        (amount_delta, agent_uid),
-    )
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        if amount_delta < 0:
+            need = -amount_delta
+            cur = conn.execute(
+                """UPDATE agents SET float_balance = float_balance - ?
+                   WHERE firebase_uid = ? AND float_balance >= ?""",
+                (need, agent_uid, need),
+            )
+            if cur.rowcount == 0:
+                conn.rollback()
+                return False
+        else:
+            cur = conn.execute(
+                """UPDATE agents SET float_balance = COALESCE(float_balance, 0) + ?
+                   WHERE firebase_uid = ?""",
+                (amount_delta, agent_uid),
+            )
+            if cur.rowcount == 0:
+                conn.rollback()
+                return False
+        conn.commit()
+        return True
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def agent_float_topup(user_uid, amount):
+    """Move `amount` from user wallet into agent float atomically."""
+    conn = get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        agent = conn.execute(
+            "SELECT * FROM agents WHERE firebase_uid = ?", (user_uid,)
+        ).fetchone()
+        if not agent or agent["status"] != "active":
+            conn.rollback()
+            return {"error": "Agent not active"}, 403
+        cur = conn.execute(
+            """UPDATE users SET balance = balance - ?,
+                   kes_balance = MAX(COALESCE(kes_balance,0) - ?, 0),
+                   updated_at = datetime('now')
+               WHERE firebase_uid = ? AND balance >= ?""",
+            (amount, amount, user_uid, amount),
+        )
+        if cur.rowcount == 0:
+            conn.rollback()
+            return {"error": "Insufficient balance"}, 400
+        conn.execute(
+            "UPDATE agents SET float_balance = COALESCE(float_balance,0) + ? WHERE firebase_uid = ?",
+            (amount, user_uid),
+        )
+        conn.execute(
+            """INSERT INTO agent_transactions (agent_uid, type, amount, reference)
+               VALUES (?, 'float_topup', ?, ?)""",
+            (user_uid, amount, f"float_{user_uid[:8]}_{amount}"),
+        )
+        conn.commit()
+        return {"message": "Float topped up", "amount": amount}
+    except Exception as e:
+        conn.rollback()
+        return {"error": str(e)}, 500
+    finally:
+        conn.close()
+
+
+def agent_float_transfer(from_uid, to_uid, amount):
+    conn = get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        from_agent = conn.execute(
+            "SELECT * FROM agents WHERE firebase_uid = ?", (from_uid,)
+        ).fetchone()
+        to_agent = conn.execute(
+            "SELECT * FROM agents WHERE firebase_uid = ?", (to_uid,)
+        ).fetchone()
+        if not from_agent:
+            conn.rollback()
+            return {"error": "You are not an agent"}, 404
+        if from_agent["status"] != "active":
+            conn.rollback()
+            return {"error": "Your agent account is not active"}, 403
+        if not to_agent:
+            conn.rollback()
+            return {"error": "Recipient agent not found"}, 404
+        if to_agent["status"] != "active":
+            conn.rollback()
+            return {"error": "Recipient agent is not active"}, 403
+        cur = conn.execute(
+            "UPDATE agents SET float_balance = float_balance - ? WHERE firebase_uid = ? AND float_balance >= ?",
+            (amount, from_uid, amount),
+        )
+        if cur.rowcount == 0:
+            conn.rollback()
+            return {"error": "Insufficient float balance"}, 400
+        conn.execute(
+            "UPDATE agents SET float_balance = COALESCE(float_balance,0) + ? WHERE firebase_uid = ?",
+            (amount, to_uid),
+        )
+        ref = f"float_xfer_{from_uid[:8]}_{to_uid[:8]}_{amount}"
+        conn.execute(
+            """INSERT INTO agent_transactions (agent_uid, type, amount, user_uid, reference)
+               VALUES (?, 'float_withdrawal', ?, ?, ?)""",
+            (from_uid, amount, to_uid, ref),
+        )
+        conn.execute(
+            """INSERT INTO agent_transactions (agent_uid, type, amount, user_uid, reference)
+               VALUES (?, 'float_topup', ?, ?, ?)""",
+            (to_uid, amount, from_uid, ref),
+        )
+        conn.commit()
+        return {
+            "message": f"Float transfer of KES {amount / 100:.2f} sent",
+            "amount": amount,
+            "from_agent": from_uid,
+            "to_agent": to_uid,
+        }
+    except Exception as e:
+        conn.rollback()
+        return {"error": str(e)}, 500
+    finally:
+        conn.close()
+
+
+def agent_cash_in(agent_uid, user_phone, amount):
+    """Agent float → user wallet. Commission taken from amount (conserved)."""
+    conn = get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        agent = conn.execute(
+            "SELECT * FROM agents WHERE firebase_uid = ?", (agent_uid,)
+        ).fetchone()
+        if not agent or agent["status"] != "active":
+            conn.rollback()
+            return {"error": "Agent not active"}, 403
+        user = conn.execute(
+            "SELECT * FROM users WHERE phone = ? OR email = ?",
+            (user_phone, user_phone),
+        ).fetchone()
+        if not user:
+            conn.rollback()
+            return {"error": "User not found"}, 404
+
+        tiers = conn.execute(
+            "SELECT * FROM tariffs WHERE type = 'agent_commission' AND is_active = 1 ORDER BY min_amount ASC"
+        ).fetchall()
+        commission = 0
+        for t in tiers:
+            min_amt = t["min_amount"] or 0
+            max_amt = t["max_amount"]
+            if amount < min_amt:
+                continue
+            if max_amt is not None and amount > max_amt:
+                continue
+            flat = t["flat_fee"] or 0
+            pct = t["percentage"] or 0
+            commission = flat + (amount * pct) // 10000
+            break
+        if commission >= amount:
+            commission = 0
+        user_credit = amount - commission
+
+        cur = conn.execute(
+            "UPDATE agents SET float_balance = float_balance - ? WHERE firebase_uid = ? AND float_balance >= ?",
+            (amount, agent_uid, amount),
+        )
+        if cur.rowcount == 0:
+            conn.rollback()
+            return {"error": "Insufficient float"}, 400
+
+        # Net float: -amount + commission (commission retained by agent from the cash-in).
+        if commission > 0:
+            conn.execute(
+                """UPDATE agents SET float_balance = COALESCE(float_balance,0) + ?,
+                       total_commission_earned = COALESCE(total_commission_earned,0) + ?
+                   WHERE firebase_uid = ?""",
+                (commission, commission, agent_uid),
+            )
+
+        conn.execute(
+            """UPDATE users SET balance = balance + ?,
+                   kes_balance = COALESCE(kes_balance,0) + ?,
+                   updated_at = datetime('now')
+               WHERE firebase_uid = ?""",
+            (user_credit, user_credit, user["firebase_uid"]),
+        )
+        conn.execute(
+            """INSERT INTO agent_transactions (agent_uid, type, amount, user_uid, commission, reference)
+               VALUES (?, 'cash_in', ?, ?, ?, ?)""",
+            (agent_uid, amount, user["firebase_uid"], commission, f"cashin_{user_phone}"),
+        )
+        if commission > 0:
+            conn.execute(
+                """INSERT INTO agent_transactions (agent_uid, type, amount, reference)
+                   VALUES (?, 'commission', ?, ?)""",
+                (agent_uid, commission, f"comm_{agent_uid[:8]}_{amount}"),
+            )
+        conn.commit()
+        return {
+            "message": "Cash-in successful",
+            "amount": amount,
+            "credited": user_credit,
+            "commission": commission,
+        }
+    except Exception as e:
+        conn.rollback()
+        return {"error": str(e)}, 500
+    finally:
+        conn.close()
+
+
+def agent_cash_out(agent_uid, user_phone, amount):
+    """User wallet → agent float atomically."""
+    conn = get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        agent = conn.execute(
+            "SELECT * FROM agents WHERE firebase_uid = ?", (agent_uid,)
+        ).fetchone()
+        if not agent or agent["status"] != "active":
+            conn.rollback()
+            return {"error": "Agent not active"}, 403
+        user = conn.execute(
+            "SELECT * FROM users WHERE phone = ? OR email = ?",
+            (user_phone, user_phone),
+        ).fetchone()
+        if not user:
+            conn.rollback()
+            return {"error": "User not found"}, 404
+        cur = conn.execute(
+            """UPDATE users SET balance = balance - ?,
+                   kes_balance = MAX(COALESCE(kes_balance,0) - ?, 0),
+                   updated_at = datetime('now')
+               WHERE firebase_uid = ? AND balance >= ?""",
+            (amount, amount, user["firebase_uid"], amount),
+        )
+        if cur.rowcount == 0:
+            conn.rollback()
+            return {"error": "User insufficient balance"}, 400
+        conn.execute(
+            "UPDATE agents SET float_balance = COALESCE(float_balance,0) + ? WHERE firebase_uid = ?",
+            (amount, agent_uid),
+        )
+        conn.execute(
+            """INSERT INTO agent_transactions (agent_uid, type, amount, user_uid, reference)
+               VALUES (?, 'cash_out', ?, ?, ?)""",
+            (agent_uid, amount, user["firebase_uid"], f"cashout_{user_phone}"),
+        )
+        conn.commit()
+        return {"message": "Cash-out successful", "amount": amount}
+    except Exception as e:
+        conn.rollback()
+        return {"error": str(e)}, 500
+    finally:
+        conn.close()
 
 
 def get_all_agents(status=None):
