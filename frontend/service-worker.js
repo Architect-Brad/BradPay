@@ -1,4 +1,4 @@
-const CACHE = "bradpay-v5";
+const CACHE = "bradpay-v6";
 const ASSETS = [
   "/",
   "/index.html",

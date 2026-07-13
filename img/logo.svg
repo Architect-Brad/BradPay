@@ -1,26 +1,29 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120" fill="none">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="60" y2="60" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#3b82f6"/>
-      <stop offset="1" stop-color="#1d4ed8"/>
+    <linearGradient id="plasma" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2ee6a6"/>
+      <stop offset="0.5" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#818cf8"/>
     </linearGradient>
-    <linearGradient id="accent" x1="0" y1="0" x2="30" y2="30" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#60a5fa"/>
-      <stop offset="1" stop-color="#3b82f6"/>
+    <linearGradient id="gold" x1="200" y1="20" x2="360" y2="80" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f5d76e"/>
+      <stop offset="1" stop-color="#f0b429"/>
+    </linearGradient>
+    <linearGradient id="void" x1="0" y1="0" x2="64" y2="64">
+      <stop stop-color="#0b1224"/>
+      <stop offset="1" stop-color="#121a3a"/>
     </linearGradient>
   </defs>
-
-  <!-- Icon: Stylized B with payment arrow -->
-  <rect x="4" y="10" width="56" height="56" rx="14" fill="url(#bg)"/>
-  <path d="M24 22h10c4.4 0 8 3.1 8 7s-3.6 7-8 7H24V22z" fill="white" opacity="0.9"/>
-  <path d="M24 36h12c4.4 0 8 3.1 8 7s-3.6 7-8 7H24V36z" fill="white" opacity="0.6"/>
-  <path d="M32 56l6-6-6-6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-  <path d="M38 50H22" stroke="white" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-
-  <!-- Text: BradPay -->
-  <text x="76" y="55" font-family="system-ui, -apple-system, sans-serif" font-size="44" font-weight="800" letter-spacing="-1" fill="#f1f5f9">Brad</text>
-  <text x="160" y="55" font-family="system-ui, -apple-system, sans-serif" font-size="44" font-weight="800" letter-spacing="-1" fill="#3b82f6">Pay</text>
-
+  <!-- Icon tile -->
+  <rect x="2" y="18" width="64" height="64" rx="18" fill="url(#void)"/>
+  <rect x="2" y="18" width="64" height="64" rx="18" stroke="url(#plasma)" stroke-width="1.5" opacity="0.6"/>
+  <path d="M20 32h16c7 0 12 4.5 12 10.5S43 53 36 53H20V32z" fill="url(#plasma)" opacity="0.95"/>
+  <path d="M20 53h18c7.5 0 13 4.5 13 11s-5.5 11-13 11H20V53z" fill="url(#plasma)" opacity="0.7"/>
+  <path d="M40 74l8-6.5-8-6.5" stroke="url(#gold)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M48 67.5H28" stroke="url(#gold)" stroke-width="2.2" stroke-linecap="round"/>
+  <!-- Wordmark -->
+  <text x="82" y="58" font-family="Syne, system-ui, sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="#f4f7fb">Brad</text>
+  <text x="178" y="58" font-family="Syne, system-ui, sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="url(#plasma)">Pay</text>
   <!-- Tagline -->
-  <text x="76" y="78" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="500" letter-spacing="1.5" fill="#64748b">THE FINANCIAL ENGINE OF THE BRADVERSE</text>
+  <text x="82" y="82" font-family="DM Sans, system-ui, sans-serif" font-size="11" font-weight="600" letter-spacing="2.4" fill="#6b7a94">THE FINANCIAL ENGINE OF THE BRADVERSE</text>
 </svg>

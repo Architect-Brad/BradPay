@@ -3,21 +3,24 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#080c18" />
+  <meta name="theme-color" content="#05060f" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="description" content="BradPay — send KES, deposit via M-PESA, and manage your wallet." />
+  <meta name="description" content="BradPay — the financial engine of the BradVerse. Real KES. M-PESA. Yours." />
   <link rel="manifest" href="/manifest.json" />
   <link rel="icon" type="image/svg+xml" href="/img/favicon.svg" />
   <link rel="apple-touch-icon" href="/img/logo-icon.svg" />
-  <title>BradPay</title>
+  <title>BradPay · BradVerse</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/css/style.css" />
 </head>
 <body>
   <div id="splash-screen">
     <div class="splash-logo"><img src="/img/logo-icon.svg" alt="" /></div>
-    <div class="splash-title">BradPay</div>
-    <div class="splash-sub">The BradVerse</div>
+    <div class="splash-title"><span class="brad">Brad</span><span class="pay">Pay</span></div>
+    <div class="splash-sub">Enter the BradVerse</div>
     <div class="splash-loader"><div class="splash-loader-bar"></div></div>
   </div>
   <div id="app">
@@ -31,15 +34,15 @@
 
     <!-- Auth Screen -->
     <div id="auth-screen" class="screen active">
-      <div class="auth-badge">Kenya · KES wallet</div>
+      <div class="auth-badge">✦ BradVerse · Kenya</div>
       <img class="auth-logo" src="/img/logo.svg" alt="BradPay" />
-      <div class="auth-tagline">The Financial Engine of the BradVerse</div>
+      <div class="auth-tagline">Money with gravity. Built for the BradVerse.</div>
       <div class="auth-card">
         <div class="auth-form" id="auth-form">
           <div class="auth-error" id="auth-error"></div>
           <input type="email" id="auth-email" placeholder="Email" autocomplete="email" />
           <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password" />
-          <button class="btn btn-primary btn-full" id="auth-submit">Sign In</button>
+          <button class="btn btn-primary btn-full" id="auth-submit">Enter BradPay</button>
           <div class="auth-divider">or</div>
           <button class="btn btn-google btn-full" id="auth-google-btn">
             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" />
@@ -48,7 +51,7 @@
         </div>
       </div>
       <div class="auth-switch">
-        Don't have an account? <a id="auth-toggle">Create one</a>
+        New here? <a id="auth-toggle">Create your wallet</a>
       </div>
       <div class="auth-footer">
         <a href="/terms.html">Terms</a> · <a href="/privacy.html">Privacy</a> · <a href="/developers.html">API</a>
@@ -57,9 +60,9 @@
 
     <!-- Register Screen -->
     <div id="register-screen" class="screen">
-      <div class="auth-badge">New wallet</div>
+      <div class="auth-badge">✦ Claim your seat</div>
       <img class="auth-logo" src="/img/logo.svg" alt="BradPay" />
-      <div class="auth-tagline">Set up your secure KES wallet</div>
+      <div class="auth-tagline">One wallet. Real KES. Your node in the Verse.</div>
       <div class="auth-card">
         <div class="auth-form" id="register-form">
           <div class="auth-error" id="register-error"></div>
@@ -69,8 +72,8 @@
           <input type="tel" id="reg-phone" placeholder="Phone (e.g. 0712 345 678)" autocomplete="tel" />
           <input type="password" id="reg-pin" placeholder="Create 4–6 digit PIN" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="new-password" />
           <input type="password" id="reg-pin-confirm" placeholder="Confirm PIN" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="new-password" />
-          <div class="pin-hint">Avoid easy PINs like 1234 or 0000</div>
-          <button class="btn btn-primary btn-full" id="register-submit">Create Wallet</button>
+          <div class="pin-hint">Your PIN guards every send. Skip 1234 & 0000.</div>
+          <button class="btn btn-primary btn-full" id="register-submit">Create BradPay wallet</button>
           <div class="auth-divider">or</div>
           <button class="btn btn-google btn-full" id="register-google-btn">
             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" />
@@ -79,7 +82,7 @@
         </div>
       </div>
       <div class="auth-switch">
-        Already have an account? <a id="register-toggle">Sign in</a>
+        Already in the Verse? <a id="register-toggle">Sign in</a>
       </div>
       <div class="auth-footer">
         <a href="/terms.html">Terms</a> · <a href="/privacy.html">Privacy</a> · <a href="/developers.html">API</a>
@@ -93,25 +96,26 @@
           <div class="avatar" id="dashboard-avatar">B</div>
           <div>
             <div class="user-name" id="dashboard-user-name">Welcome</div>
-            <h1>BradPay</h1>
+            <h1 class="brand-mark">Brad<span class="pay">Pay</span></h1>
           </div>
         </div>
-        <button class="btn-logout" id="logout-btn">Sign out</button>
+        <button class="btn-logout" id="logout-btn">Leave</button>
       </div>
 
       <div class="balance-card">
+        <div class="bradcard-orbit" aria-hidden="true"></div>
         <div class="balance-card-top">
-          <div class="balance-label">Available balance</div>
-          <div class="balance-status"><span class="balance-status-dot"></span> Live</div>
+          <div class="balance-label">Your float</div>
+          <div class="balance-status"><span class="balance-status-dot"></span> On-chain ready</div>
         </div>
         <div class="balance-row">
           <span class="balance-currency-prefix">KES</span>
           <div class="balance-amount" id="balance-amount">0.00</div>
         </div>
-        <div class="balance-sub" id="balance-sub">Ready to send · Deposit via M-PESA</div>
+        <div class="balance-sub" id="balance-sub">Fuel the Verse · Deposit via M-PESA</div>
         <div class="balance-actions">
           <button type="button" class="balance-action-btn primary" id="balance-send-btn">Send</button>
-          <button type="button" class="balance-action-btn ghost" id="balance-deposit-btn">Deposit</button>
+          <button type="button" class="balance-action-btn ghost" id="balance-deposit-btn">Fuel up</button>
         </div>
       </div>
 
@@ -153,7 +157,7 @@
         </a>
       </div>
 
-      <div class="section-title"><span>Recent activity</span></div>
+      <div class="section-title"><span>Pulse · recent activity</span></div>
       <div class="tx-list" id="tx-list">
         <div class="loading" id="tx-loading"><div class="spinner"></div></div>
       </div>
@@ -162,8 +166,8 @@
     <!-- Send Screen -->
     <div id="send-screen" class="screen form-screen">
       <button class="back" id="send-back">← Back</button>
-      <h2>Send money</h2>
-      <p class="form-lead">Pay anyone on BradPay by email, phone, or UID.</p>
+      <h2 class="wordmark">Send <span class="pay">KES</span></h2>
+      <p class="form-lead">Beam value to any BradPay node — email, phone, or UID.</p>
       <label>Recipient</label>
       <input type="text" id="send-recipient" placeholder="Email, phone, or UID" autocomplete="off" />
       <div id="send-recipient-info" class="recipient-info" style="display:none;"></div>
@@ -186,8 +190,8 @@
     <!-- Receive Screen -->
     <div id="receive-screen" class="screen form-screen">
       <button class="back" id="receive-back">← Back</button>
-      <h2>Receive money</h2>
-      <p class="form-lead">Share your QR code or BradPay ID to get paid.</p>
+      <h2 class="wordmark">Receive <span class="pay">KES</span></h2>
+      <p class="form-lead">Your QR is your address in the BradVerse.</p>
       <div class="receive-card">
         <div class="receive-qr" id="receive-qr">
           <canvas id="qr-canvas"></canvas>
@@ -202,8 +206,8 @@
     <!-- Deposit Screen -->
     <div id="deposit-screen" class="screen form-screen">
       <button class="back" id="deposit-back">← Back</button>
-      <h2>Deposit</h2>
-      <p class="form-lead">We'll send an M-PESA STK Push to your phone. Approve to top up.</p>
+      <h2 class="wordmark">Fuel <span class="pay">up</span></h2>
+      <p class="form-lead">M-PESA STK Push lands real KES in your BradPay float.</p>
       <label>Amount</label>
       <div class="amount-field">
         <span class="prefix">KES</span>
@@ -225,8 +229,8 @@
     <!-- Withdraw Screen -->
     <div id="withdraw-screen" class="screen form-screen">
       <button class="back" id="withdraw-back">← Back</button>
-      <h2>Withdraw</h2>
-      <p class="form-lead">Cash out to M-PESA. Funds usually arrive within seconds.</p>
+      <h2 class="wordmark">Cash <span class="pay">out</span></h2>
+      <p class="form-lead">Exit to M-PESA when you need cash in the real world.</p>
       <div class="info-pill">
         <span>Available</span>
         <strong id="withdraw-kes-balance">KES 0.00</strong>
@@ -246,8 +250,8 @@
     <div id="ledger-screen" class="screen">
       <div class="top-bar">
         <div>
-          <div class="user-name">BradLedger™</div>
-          <h1>Block Explorer</h1>
+          <div class="user-name verse-tag">✦ BradLedger</div>
+          <h1 class="brand-mark">Block <span class="pay">Explorer</span></h1>
         </div>
         <button class="btn-ghost" id="ledger-back">← Back</button>
       </div>
@@ -278,8 +282,8 @@
     <div id="trade-screen" class="screen">
       <div class="top-bar">
         <div>
-          <div class="user-name">BradTrade™</div>
-          <h1>Exchange</h1>
+          <div class="user-name verse-tag">✦ BradTrade</div>
+          <h1 class="brand-mark">Ex<span class="pay">change</span></h1>
         </div>
         <button class="btn-ghost" id="trade-back">← Back</button>
       </div>
@@ -336,8 +340,8 @@
     <div id="security-screen" class="screen">
       <div class="top-bar">
         <div>
-          <div class="user-name">BradSec™</div>
-          <h1>Security Center</h1>
+          <div class="user-name verse-tag">✦ BradSec</div>
+          <h1 class="brand-mark">Security <span class="pay">Center</span></h1>
         </div>
         <button class="btn-ghost" id="security-back">← Back</button>
       </div>
@@ -356,8 +360,8 @@
     <!-- Confirm Dialog -->
     <div class="dialog-overlay" id="confirm-dialog">
       <div class="dialog">
-        <h3>Confirm Transfer</h3>
-        <p>Send to: <span id="confirm-recipient"></span></p>
+        <h3>Confirm beam</h3>
+        <p>To: <span id="confirm-recipient"></span></p>
         <div class="amount-large" id="confirm-amount">KES 0.00</div>
         <p id="confirm-note"></p>
         <div class="form-group">
@@ -367,13 +371,14 @@
         </div>
         <div class="actions">
           <button class="btn btn-secondary" id="confirm-cancel">Cancel</button>
-          <button class="btn btn-primary" id="confirm-submit" disabled>Send</button>
+          <button class="btn btn-primary" id="confirm-submit" disabled>Beam it</button>
         </div>
       </div>
     </div>
 
     <div class="global-footer">
-      <a href="/terms.html">Terms of Service</a> · <a href="/privacy.html">Privacy Policy</a> · <a href="/developers.html">API Docs</a>
+      <span style="color:var(--text3)">BradPay · BradVerse</span><br/>
+      <a href="/terms.html">Terms</a> · <a href="/privacy.html">Privacy</a> · <a href="/developers.html">API</a>
     </div>
   </div>
 

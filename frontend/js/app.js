@@ -118,7 +118,7 @@ function setUserGreeting(profile) {
     "there";
   const first = String(name).trim().split(/\s+/)[0] || "there";
   const greetEl = $("dashboard-user-name");
-  if (greetEl) greetEl.textContent = `Hi, ${first}`;
+  if (greetEl) greetEl.textContent = `Hey ${first} · node online`;
   const av = $("dashboard-avatar");
   if (av) av.textContent = first.charAt(0).toUpperCase();
 }
@@ -133,8 +133,8 @@ async function refreshDashboard() {
     if (sub) {
       sub.textContent =
         currentBalance > 0
-          ? "Wallet ready · Deposit or withdraw via M-PESA anytime"
-          : "Top up with M-PESA to start sending";
+          ? "Float is live · Beam, trade, or cash out anytime"
+          : "Fuel up with M-PESA to power your first beam";
     }
     refreshDaraja();
 
@@ -149,11 +149,11 @@ async function refreshDashboard() {
     if (txs.length === 0) {
       list.innerHTML = `<div class="tx-empty">
         <div class="icon">${icon("empty", 48)}</div>
-        <div style="font-weight:600;color:var(--text)">No activity yet</div>
-        <div style="font-size:13px;color:var(--text3);max-width:240px;text-align:center;line-height:1.45">
-          Deposit from M-PESA or receive a payment to see history here
+        <div style="font-family:var(--font-display);font-weight:800;font-size:18px;color:var(--text);letter-spacing:-0.3px">Silence in the Verse</div>
+        <div style="font-size:13px;color:var(--text3);max-width:260px;text-align:center;line-height:1.5">
+          No beams yet. Fuel your float or share your receive ID — history lights up here.
         </div>
-        <button type="button" class="btn btn-primary btn-sm" id="empty-deposit-cta">Deposit now</button>
+        <button type="button" class="btn btn-primary btn-sm" id="empty-deposit-cta">Fuel up with M-PESA</button>
       </div>`;
       const cta = $("empty-deposit-cta");
       if (cta) cta.onclick = () => showScreen("deposit");
@@ -400,7 +400,7 @@ async function handleRegister() {
       setLoading($("register-submit"), false);
       return;
     }
-    showToast("Wallet created!", "success");
+    showToast("Welcome to the BradVerse", "success");
     showScreen("dashboard");
   } catch (e) {
     showToast("Registration failed", "error");
@@ -718,7 +718,7 @@ document.addEventListener("DOMContentLoaded", () => {
       await handleAuth(email, password);
     } catch (e) { /* handled in handleAuth */ }
     setLoading($("auth-submit"), false);
-    $("auth-submit").textContent = "Sign In";
+    $("auth-submit").textContent = "Enter BradPay";
   };
   $("auth-password").onkeydown = (e) => { if (e.key === "Enter") $("auth-submit").click(); };
 
