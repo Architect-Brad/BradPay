@@ -637,101 +637,123 @@ document.addEventListener("pointerdown", (e) => {
   ripple.addEventListener("animationend", () => ripple.remove());
 });
 
+// ── Splash helpers ──
+// Top-level `await import("firebase/...")` can delay this module until AFTER
+// DOMContentLoaded has already fired. Binding only to that event left the
+// splash screen up forever in production. Always hide splash in finally + timeout.
+function hideSplash() {
+  const splash = document.getElementById("splash-screen");
+  if (!splash || splash.dataset.hidden === "1") return;
+  splash.dataset.hidden = "1";
+  splash.classList.add("hide");
+  setTimeout(() => splash.remove(), 500);
+}
+// Hard fallback — never trap the user on splash
+setTimeout(hideSplash, 4000);
+
 // ── Init ──
 async function init() {
-  const fns = await initAuth(app);
-  auth = fns.auth;
-  authFns = fns;
+  try {
+    const fns = await initAuth(app);
+    auth = fns.auth;
+    authFns = fns;
 
-  initNetworkListener((online) => {
-    const banner = document.getElementById("offline-banner");
-    if (banner) {
-      banner.style.display = online ? "none" : "flex";
-      document.body.classList.toggle("bradpay-offline", !online);
-    }
-  });
-
-  window.addEventListener("queue-flushed", (e) => {
-    const n = e.detail;
-    showToast(`${n} transaction(s) synced`, "success");
-    refreshDashboard();
-  });
-
-  onAuthChange(({ user, registered }) => {
-    setUserGreeting(user);
-
-    const activeId = document.querySelector(".screen.active")?.id;
-    if (activeId && activeId !== "auth-screen" && activeId !== "register-screen" && activeId !== "dashboard-screen") {
-      return;
-    }
-
-    if (user) {
-      if (registered) {
-        screenStack = ["dashboard"];
-        showScreen("dashboard", false);
-        renderQR();
-        initTrade();
-        initDaraja();
-        startPolling();
-      } else {
-        showScreen("register");
-        if (user.email && !$("reg-email").value) {
-          $("reg-email").value = user.email;
-          $("reg-name").value = user.displayName || "";
-          $("reg-password").style.display = "none";
-          $("reg-password").removeAttribute("required");
-        }
+    initNetworkListener((online) => {
+      const banner = document.getElementById("offline-banner");
+      if (banner) {
+        banner.style.display = online ? "none" : "flex";
+        document.body.classList.toggle("bradpay-offline", !online);
       }
-    } else {
-      stopPolling();
-      showScreen("auth");
-    }
-  });
+    });
 
-  // Hide splash screen
-  const splash = document.getElementById("splash-screen");
-  if (splash) { splash.classList.add("hide"); setTimeout(() => splash.remove(), 500); }
+    window.addEventListener("queue-flushed", (e) => {
+      const n = e.detail;
+      showToast(`${n} transaction(s) synced`, "success");
+      refreshDashboard();
+    });
+
+    onAuthChange(({ user, registered }) => {
+      setUserGreeting(user);
+
+      const activeId = document.querySelector(".screen.active")?.id;
+      if (activeId && activeId !== "auth-screen" && activeId !== "register-screen" && activeId !== "dashboard-screen") {
+        return;
+      }
+
+      if (user) {
+        if (registered) {
+          screenStack = ["dashboard"];
+          showScreen("dashboard", false);
+          renderQR();
+          initTrade();
+          initDaraja();
+          startPolling();
+        } else {
+          showScreen("register");
+          if (user.email && $("reg-email") && !$("reg-email").value) {
+            $("reg-email").value = user.email;
+            if ($("reg-name")) $("reg-name").value = user.displayName || "";
+            if ($("reg-password")) {
+              $("reg-password").style.display = "none";
+              $("reg-password").removeAttribute("required");
+            }
+          }
+        }
+      } else {
+        stopPolling();
+        showScreen("auth");
+      }
+    });
+  } catch (err) {
+    console.error("BradPay init failed:", err);
+    showScreen("auth");
+    showToast("Could not start auth — check connection", "error");
+  } finally {
+    hideSplash();
+  }
 }
 
-// ── Event Bindings ──
-document.addEventListener("DOMContentLoaded", () => {
-  init();
+function on(id, event, handler) {
+  const el = $(id);
+  if (el) el[event] = handler;
+}
 
-  $("auth-toggle").onclick = () => {
+function bindUi() {
+  on("auth-toggle", "onclick", () => {
     isRegisterMode = true;
     showScreen("register");
-    $("auth-error").style.display = "none";
-  };
-  $("register-toggle").onclick = () => {
+    if ($("auth-error")) $("auth-error").style.display = "none";
+  });
+  on("register-toggle", "onclick", () => {
     isRegisterMode = false;
     showScreen("auth");
-    $("register-error").style.display = "none";
-  };
+    if ($("register-error")) $("register-error").style.display = "none";
+  });
 
-  $("auth-submit").onclick = async () => {
-    $("auth-error").style.display = "none";
-    const email = $("auth-email").value;
-    const password = $("auth-password").value;
+  on("auth-submit", "onclick", async () => {
+    if ($("auth-error")) $("auth-error").style.display = "none";
+    const email = $("auth-email")?.value;
+    const password = $("auth-password")?.value;
     if (!email || !password) { showToast("Fill in all fields", "error"); return; }
     setLoading($("auth-submit"), true);
     try {
       await handleAuth(email, password);
     } catch (e) { /* handled in handleAuth */ }
     setLoading($("auth-submit"), false);
-    $("auth-submit").textContent = "Enter BradPay";
-  };
-  $("auth-password").onkeydown = (e) => { if (e.key === "Enter") $("auth-submit").click(); };
+    if ($("auth-submit")) $("auth-submit").textContent = "Enter BradPay";
+  });
+  on("auth-password", "onkeydown", (e) => { if (e.key === "Enter") $("auth-submit")?.click(); });
 
-  $("register-submit").onclick = () => handleRegister();
-  $("reg-email").onkeydown = (e) => { if (e.key === "Enter") $("register-submit").click(); };
-  $("reg-password").onkeydown = (e) => { if (e.key === "Enter") $("register-submit").click(); };
-  $("reg-name").onkeydown = (e) => { if (e.key === "Enter") $("register-submit").click(); };
-  $("reg-phone").onkeydown = (e) => { if (e.key === "Enter") $("register-submit").click(); };
-  $("reg-pin").onkeydown = (e) => { if (e.key === "Enter") $("register-submit").click(); };
-  $("reg-pin-confirm").onkeydown = (e) => { if (e.key === "Enter") $("register-submit").click(); };
+  on("register-submit", "onclick", () => handleRegister());
+  ["reg-email", "reg-password", "reg-name", "reg-phone", "reg-pin", "reg-pin-confirm"].forEach((id) => {
+    on(id, "onkeydown", (e) => { if (e.key === "Enter") $("register-submit")?.click(); });
+  });
 
-  // Google OAuth
   async function handleGoogleSignIn(buttonId) {
+    if (!authFns || !auth) {
+      showToast("Auth not ready yet", "error");
+      return;
+    }
     setLoading($(buttonId), true);
     try {
       const provider = new authFns.GoogleAuthProvider();
@@ -744,40 +766,37 @@ document.addEventListener("DOMContentLoaded", () => {
       setLoading($(buttonId), false);
     }
   }
-  $("auth-google-btn").onclick = () => handleGoogleSignIn("auth-google-btn");
-  $("register-google-btn").onclick = () => handleGoogleSignIn("register-google-btn");
+  on("auth-google-btn", "onclick", () => handleGoogleSignIn("auth-google-btn"));
+  on("register-google-btn", "onclick", () => handleGoogleSignIn("register-google-btn"));
 
-  $("logout-btn").onclick = async () => {
-    if (authFns) {
+  on("logout-btn", "onclick", async () => {
+    if (authFns && auth) {
       await authFns.signOut(auth);
       stopPolling();
       screenStack = [];
       showScreen("auth");
     }
-  };
+  });
 
   function goSend() {
     showScreen("send");
-    $("send-recipient").focus();
-    $("send-recipient-info").style.display = "none";
+    $("send-recipient")?.focus();
+    if ($("send-recipient-info")) $("send-recipient-info").style.display = "none";
   }
   function goDeposit() {
     showScreen("deposit");
   }
 
-  $("action-send").onclick = goSend;
-  $("balance-send-btn").onclick = goSend;
-  $("action-receive").onclick = () => {
+  on("action-send", "onclick", goSend);
+  on("balance-send-btn", "onclick", goSend);
+  on("action-receive", "onclick", () => {
     renderQR();
     showScreen("receive");
-  };
-  $("action-deposit").onclick = goDeposit;
-  $("balance-deposit-btn").onclick = goDeposit;
-  $("action-withdraw").onclick = () => {
-    showScreen("withdraw");
-  };
+  });
+  on("action-deposit", "onclick", goDeposit);
+  on("balance-deposit-btn", "onclick", goDeposit);
+  on("action-withdraw", "onclick", () => showScreen("withdraw"));
 
-  // Amount quick-pick chips
   document.querySelectorAll("#send-amount-chips .chip, #deposit-amount-chips .chip").forEach((chip) => {
     chip.onclick = () => {
       const amount = chip.dataset.amount;
@@ -791,36 +810,45 @@ document.addEventListener("DOMContentLoaded", () => {
       chip.classList.add("active");
     };
   });
-  $("action-ledger").onclick = () => {
-    showScreen("ledger");
-  };
-  $("action-trade").onclick = () => {
+  on("action-ledger", "onclick", () => showScreen("ledger"));
+  on("action-trade", "onclick", () => {
     refreshTradeScreen();
     showScreen("trade");
-  };
-  $("action-security").onclick = async () => {
+  });
+  on("action-security", "onclick", async () => {
     await loadSecurityEvents();
     showScreen("security");
-  };
-  $("send-back").onclick = goBack;
-  $("receive-back").onclick = goBack;
-  $("deposit-back").onclick = goBack;
-  $("withdraw-back").onclick = goBack;
-  $("ledger-back").onclick = goBack;
-  $("trade-back").onclick = goBack;
-  $("security-back").onclick = goBack;
+  });
+  on("send-back", "onclick", goBack);
+  on("receive-back", "onclick", goBack);
+  on("deposit-back", "onclick", goBack);
+  on("withdraw-back", "onclick", goBack);
+  on("ledger-back", "onclick", goBack);
+  on("trade-back", "onclick", goBack);
+  on("security-back", "onclick", goBack);
 
-  $("send-submit").onclick = handleSend;
-  $("send-amount").onkeydown = (e) => { if (e.key === "Enter") handleSend(); };
+  on("send-submit", "onclick", handleSend);
+  on("send-amount", "onkeydown", (e) => { if (e.key === "Enter") handleSend(); });
 
-  $("receive-copy").onclick = async () => {
+  on("receive-copy", "onclick", async () => {
     try {
-      await navigator.clipboard.writeText($("receive-uid").textContent);
+      await navigator.clipboard.writeText($("receive-uid")?.textContent || "");
       showToast("UID copied!", "success");
     } catch {
       showToast("Could not copy", "error");
     }
-  };
+  });
 
-  $("ledger-mine-btn").onclick = mineBlock;
-});
+  on("ledger-mine-btn", "onclick", mineBlock);
+}
+
+// Run whether DOMContentLoaded already fired or not (module top-level await race).
+function boot() {
+  bindUi();
+  init();
+}
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", boot);
+} else {
+  boot();
+}
